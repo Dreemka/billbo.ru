@@ -1,49 +1,113 @@
 import { createContext, useContext } from 'react'
 import { makeAutoObservable } from 'mobx'
-import type { Billboard, CompanyProfile, Role, UserProfile } from '../../entities/types'
+import type {
+  AuthDevResponse,
+  AuthTokensResponse,
+  Billboard,
+  CompanyProfile,
+  RegisterPayload,
+  Role,
+  UserProfile,
+} from '../../entities/types'
+import { clearAuthStorage, REFRESH_KEY, ROLE_KEY, TOKEN_KEY } from '../../shared/api/http'
 import { authApi, billboardsApi, bookingApi, companyApi, userApi } from '../../shared/api/services'
+import { mapBackendRoleToAppRole } from '../../shared/lib/mapBackendRole'
 
 class SessionStore {
   role: Role = 'guest'
   token: string | null = null
   isLoading = false
+  authError: string | null = null
 
-  constructor() {
+  constructor(private readonly onLogout?: () => void) {
     makeAutoObservable(this)
 
     if (typeof window !== 'undefined') {
-      const storedToken = window.localStorage.getItem('billbo_access_token')
-      const storedRole = window.localStorage.getItem('billbo_role')
-      if (storedToken && storedRole) {
-        // Stored role is expected to be one of 'admin' | 'user'.
+      const storedToken = window.localStorage.getItem(TOKEN_KEY)
+      const storedRole = window.localStorage.getItem(ROLE_KEY)
+      if (storedToken && storedRole && (storedRole === 'admin' || storedRole === 'user')) {
         this.token = storedToken
-        if (storedRole === 'admin' || storedRole === 'user') {
-          this.role = storedRole
-        }
+        this.role = storedRole
       }
     }
   }
 
-  async loginAs(role: Exclude<Role, 'guest'>) {
+  private isAuthTokensResponse(data: unknown): data is AuthTokensResponse {
+    return (
+      typeof data === 'object' &&
+      data !== null &&
+      'accessToken' in data &&
+      typeof (data as AuthTokensResponse).accessToken === 'string' &&
+      'refreshToken' in data &&
+      typeof (data as AuthTokensResponse).refreshToken === 'string' &&
+      'role' in data &&
+      typeof (data as AuthTokensResponse).role === 'string'
+    )
+  }
+
+  private persistFromTokens(data: AuthTokensResponse) {
+    const appRole = mapBackendRoleToAppRole(data.role)
+    this.token = data.accessToken
+    this.role = appRole
+    this.authError = null
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(TOKEN_KEY, data.accessToken)
+      window.localStorage.setItem(ROLE_KEY, appRole)
+      window.localStorage.setItem(REFRESH_KEY, data.refreshToken)
+    }
+  }
+
+  async login(email: string, password: string): Promise<boolean> {
     this.isLoading = true
+    this.authError = null
     try {
-      const response = await authApi.loginAs(role)
-      this.role = response.data.role
-      this.token = response.data.token
-
-      if (typeof window !== 'undefined') {
-        window.localStorage.setItem('billbo_access_token', response.data.token)
-        window.localStorage.setItem('billbo_role', response.data.role)
-      }
+      const { data } = await authApi.login({ email, password })
+      this.persistFromTokens(data)
+      return true
     } catch {
-      // Fallback for local development without backend.
-      this.role = role
-      this.token = 'local-dev-token'
+      this.authError = 'Неверный email или пароль'
+      return false
+    } finally {
+      this.isLoading = false
+    }
+  }
 
-      if (typeof window !== 'undefined') {
-        window.localStorage.setItem('billbo_access_token', 'local-dev-token')
-        window.localStorage.setItem('billbo_role', role)
+  async register(payload: RegisterPayload): Promise<boolean> {
+    this.isLoading = true
+    this.authError = null
+    try {
+      const { data } = await authApi.register(payload)
+      this.persistFromTokens(data)
+      return true
+    } catch {
+      this.authError = 'Не удалось зарегистрироваться. Возможно, email уже занят.'
+      return false
+    } finally {
+      this.isLoading = false
+    }
+  }
+
+  /** Только если в .env включён VITE_ENABLE_DEV_LOGIN=true */
+  async loginAs(role: Exclude<Role, 'guest'>): Promise<boolean> {
+    this.isLoading = true
+    this.authError = null
+    try {
+      const { data } = await authApi.loginAs(role)
+      if (this.isAuthTokensResponse(data)) {
+        this.persistFromTokens(data)
+      } else {
+        const dev = data as AuthDevResponse
+        this.token = dev.token
+        this.role = dev.role
+        if (typeof window !== 'undefined') {
+          window.localStorage.setItem(TOKEN_KEY, dev.token)
+          window.localStorage.setItem(ROLE_KEY, dev.role)
+        }
       }
+      return true
+    } catch {
+      this.authError = 'Dev-вход недоступен'
+      return false
     } finally {
       this.isLoading = false
     }
@@ -52,11 +116,9 @@ class SessionStore {
   logout() {
     this.role = 'guest'
     this.token = null
-
-    if (typeof window !== 'undefined') {
-      window.localStorage.removeItem('billbo_access_token')
-      window.localStorage.removeItem('billbo_role')
-    }
+    this.authError = null
+    clearAuthStorage()
+    this.onLogout?.()
   }
 }
 
@@ -135,6 +197,11 @@ class BillboardsStore {
     }
   }
 
+  async reload() {
+    this.isLoaded = false
+    await this.load()
+  }
+
   async add(payload: Omit<Billboard, 'id'>) {
     this.isSaving = true
     this.lastError = null
@@ -145,6 +212,20 @@ class BillboardsStore {
       console.error('Billboards add failed', error)
       this.lastError = 'Не удалось добавить конструкцию.'
       // keep existing items
+    } finally {
+      this.isSaving = false
+    }
+  }
+
+  async bulkImport(surfaces: Omit<Billboard, 'id'>[]) {
+    this.isSaving = true
+    this.lastError = null
+    try {
+      await billboardsApi.bulkCreate(surfaces)
+      await this.reload()
+    } catch (error) {
+      console.error('Billboards bulkImport failed', error)
+      this.lastError = 'Не удалось импортировать CSV.'
     } finally {
       this.isSaving = false
     }
@@ -278,10 +359,22 @@ class UserStore {
 }
 
 class RootStore {
-  session = new SessionStore()
   company = new CompanyStore()
   billboards = new BillboardsStore()
   user = new UserStore()
+  session: SessionStore
+
+  constructor() {
+    this.session = new SessionStore(() => {
+      this.company.isProfileLoaded = false
+      this.user.isProfileLoaded = false
+      this.user.isWalletLoaded = false
+      this.billboards.isLoaded = false
+      this.company.lastError = null
+      this.user.lastError = null
+      this.billboards.lastError = null
+    })
+  }
 }
 
 export const rootStore = new RootStore()

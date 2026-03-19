@@ -1,45 +1,29 @@
-import { observer } from 'mobx-react-lite'
 import { createBrowserRouter } from 'react-router-dom'
-import { Card, Space, Typography } from 'antd'
 import { AppLayout } from './layouts/AppLayout'
-import { useStore } from './store/rootStore'
 import { AdminCompanyPage } from '../features/admin/AdminCompanyPage'
 import { AdminBillboardsPage } from '../features/admin/AdminBillboardsPage'
 import { UserProfilePage } from '../features/user/UserProfilePage'
 import { WalletPage } from '../features/user/WalletPage'
 import { MarketplacePage } from '../features/user/MarketplacePage'
+import { LoginPage } from '../features/auth/LoginPage'
 import { RoleGuard } from './router/RoleGuard'
-
-const HomePage = observer(function HomePage() {
-  const { session } = useStore()
-
-  const features = [
-    'Компания управляет профилем и карточками рекламных конструкций.',
-    'Пользователь находит свободные элементы, бронирует и оплачивает их.',
-    'Карточки готовы для интеграции с картой и backend API.',
-  ]
-
-  return (
-    <Card>
-      <Typography.Title level={4}>Платформа аренды наружной рекламы</Typography.Title>
-      <Typography.Paragraph>Роль: {session.role}</Typography.Paragraph>
-      <Space direction="vertical" size="small" style={{ width: '100%' }}>
-        {features.map((text) => (
-          <Typography.Paragraph key={text} style={{ margin: 0 }}>
-            {text}
-          </Typography.Paragraph>
-        ))}
-      </Space>
-    </Card>
-  )
-})
+import { RequireAuth } from './router/RequireAuth'
+import { HomeRedirect } from './router/HomeRedirect'
 
 export const router = createBrowserRouter([
   {
+    path: '/login',
+    element: <LoginPage />,
+  },
+  {
     path: '/',
-    element: <AppLayout />,
+    element: (
+      <RequireAuth>
+        <AppLayout />
+      </RequireAuth>
+    ),
     children: [
-      { index: true, element: <HomePage /> },
+      { index: true, element: <HomeRedirect /> },
       {
         path: '/admin/company',
         element: (

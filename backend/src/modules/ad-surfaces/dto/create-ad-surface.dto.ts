@@ -2,10 +2,12 @@ import {
   IsBoolean,
   IsEnum,
   IsNumber,
+  IsObject,
   IsString,
   Max,
   Min,
   MinLength,
+  IsOptional,
 } from 'class-validator'
 
 export enum SurfaceTypeDto {
@@ -46,4 +48,9 @@ export class CreateAdSurfaceDto {
 
   @IsBoolean()
   available!: boolean
+
+  @IsOptional()
+  @IsObject()
+  // Prisma ожидает InputJsonValue, поэтому используем максимально общий тип.
+  extraFields?: any
 }

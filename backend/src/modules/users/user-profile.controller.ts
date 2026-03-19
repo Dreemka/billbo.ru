@@ -1,5 +1,5 @@
-import { Body, Controller, Get, Put } from '@nestjs/common'
-import { CurrentUser } from '../../common/auth/current-user.decorator'
+import { Body, Controller, Get, Put, UnauthorizedException } from '@nestjs/common'
+import { CurrentUser, type JwtUserPayload } from '../../common/auth/current-user.decorator'
 import { UpdateUserDto } from './dto/update-user.dto'
 import { UsersService } from './users.service'
 
@@ -8,12 +8,14 @@ export class UserProfileController {
   constructor(private readonly usersService: UsersService) {}
 
   @Get('profile')
-  me(@CurrentUser() user: { sub: string } | undefined) {
-    return this.usersService.me(user?.sub ?? 'local-dev')
+  me(@CurrentUser() user: JwtUserPayload | undefined) {
+    if (!user?.sub) throw new UnauthorizedException()
+    return this.usersService.me(user.sub)
   }
 
   @Put('profile')
-  update(@CurrentUser() user: { sub: string } | undefined, @Body() dto: UpdateUserDto) {
-    return this.usersService.update(user?.sub ?? 'local-dev', dto)
+  update(@CurrentUser() user: JwtUserPayload | undefined, @Body() dto: UpdateUserDto) {
+    if (!user?.sub) throw new UnauthorizedException()
+    return this.usersService.update(user.sub, dto)
   }
 }

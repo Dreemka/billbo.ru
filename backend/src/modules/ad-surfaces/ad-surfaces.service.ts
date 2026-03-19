@@ -1,7 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common'
-import { SurfaceType } from '@prisma/client'
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common'
+import { Role, SurfaceType } from '@prisma/client'
 import { PrismaService } from '../../prisma/prisma.service'
 import { CreateAdSurfaceDto } from './dto/create-ad-surface.dto'
+import { CreateAdSurfacesBulkDto } from './dto/create-ad-surfaces-bulk.dto'
 
 @Injectable()
 export class AdSurfacesService {
@@ -9,24 +10,16 @@ export class AdSurfacesService {
 
   async listPublic() {
     const rows = await this.prisma.adSurface.findMany({
-      where: { isActive: true },
       orderBy: { createdAt: 'desc' },
     })
     return rows.map(this.mapRow)
   }
 
   async createForUser(userId: string, dto: CreateAdSurfaceDto) {
-    await this.prisma.user.upsert({
-      where: { id: userId },
-      update: {},
-      create: {
-        id: userId,
-        email: `${userId}@company.local`,
-        fullName: 'Local Company User',
-        passwordHash: 'local-dev-hash',
-        role: 'COMPANY',
-      },
-    })
+    const owner = await this.prisma.user.findUnique({ where: { id: userId } })
+    if (!owner || owner.role !== Role.COMPANY) {
+      throw new ForbiddenException('Управлять конструкциями могут только аккаунты компании')
+    }
     const company = await this.prisma.company.upsert({
       where: { ownerUserId: userId },
       update: {},
@@ -49,12 +42,52 @@ export class AdSurfacesService {
         pricePerWeek: dto.pricePerWeek,
         size: dto.size,
         isActive: dto.available,
+        extraFields: dto.extraFields ?? undefined,
       },
     })
     return this.mapRow(created)
   }
 
+  async createManyForUser(userId: string, dto: CreateAdSurfacesBulkDto) {
+    const owner = await this.prisma.user.findUnique({ where: { id: userId } })
+    if (!owner || owner.role !== Role.COMPANY) {
+      throw new ForbiddenException('Управлять конструкциями могут только аккаунты компании')
+    }
+
+    const company = await this.prisma.company.upsert({
+      where: { ownerUserId: userId },
+      update: {},
+      create: {
+        ownerUserId: userId,
+        name: 'Local Company',
+        city: 'Moscow',
+        description: 'Local development company',
+      },
+    })
+
+    await this.prisma.adSurface.createMany({
+      data: dto.surfaces.map((surface) => ({
+        companyId: company.id,
+        title: surface.title,
+        type: this.toPrismaType(surface.type),
+        address: surface.address,
+        lat: surface.lat,
+        lng: surface.lng,
+        pricePerWeek: surface.pricePerWeek,
+        size: surface.size,
+        isActive: surface.available,
+        extraFields: surface.extraFields ?? undefined,
+      })),
+    })
+
+    return { success: true, created: dto.surfaces.length }
+  }
+
   async updateForUser(userId: string, id: string, dto: CreateAdSurfaceDto) {
+    const owner = await this.prisma.user.findUnique({ where: { id: userId } })
+    if (!owner || owner.role !== Role.COMPANY) {
+      throw new ForbiddenException('Управлять конструкциями могут только аккаунты компании')
+    }
     const company = await this.prisma.company.findUnique({ where: { ownerUserId: userId } })
     if (!company) throw new NotFoundException('Company profile not found')
 
@@ -74,12 +107,17 @@ export class AdSurfacesService {
         pricePerWeek: dto.pricePerWeek,
         size: dto.size,
         isActive: dto.available,
+        extraFields: dto.extraFields ?? undefined,
       },
     })
     return this.mapRow(updated)
   }
 
   async removeForUser(userId: string, id: string) {
+    const owner = await this.prisma.user.findUnique({ where: { id: userId } })
+    if (!owner || owner.role !== Role.COMPANY) {
+      throw new ForbiddenException('Управлять конструкциями могут только аккаунты компании')
+    }
     const company = await this.prisma.company.findUnique({ where: { ownerUserId: userId } })
     if (!company) throw new NotFoundException('Company profile not found')
     const existing = await this.prisma.adSurface.findFirst({
@@ -112,6 +150,7 @@ export class AdSurfacesService {
     pricePerWeek: number
     size: string
     isActive: boolean
+    extraFields: unknown
   }) {
     return {
       id: row.id,
@@ -123,6 +162,7 @@ export class AdSurfacesService {
       pricePerWeek: row.pricePerWeek,
       size: row.size,
       available: row.isActive,
+      extraFields: (row.extraFields ?? {}) as Record<string, unknown>,
     }
   }
 }

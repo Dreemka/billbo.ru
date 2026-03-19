@@ -74,6 +74,7 @@ model AdSurface {
   pricePerWeek Int
   size         String
   isActive     Boolean       @default(true)
+  extraFields  Json?
   media        SurfaceMedia[]
   bookings     Booking[]
   createdAt    DateTime      @default(now())

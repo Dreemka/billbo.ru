@@ -4,7 +4,41 @@
 
 ## Auth
 
-### `POST /auth/login-as`
+### `POST /auth/login`
+Request:
+
+```json
+{ "email": "user@example.com", "password": "secret12" }
+```
+
+Response:
+
+```json
+{
+  "accessToken": "jwt",
+  "refreshToken": "jwt",
+  "role": "USER"
+}
+```
+
+`role` — значение Prisma enum: `USER`, `COMPANY`, `SUPERADMIN`.
+
+### `POST /auth/register`
+Request:
+
+```json
+{
+  "email": "company@example.com",
+  "password": "secret12",
+  "fullName": "ООО Реклама",
+  "phone": "+79001234567",
+  "role": "COMPANY"
+}
+```
+
+`role`: `USER` (клиент) или `COMPANY` (кабинет компании). Ответ как у `login`.
+
+### `POST /auth/login-as` (dev)
 Request:
 
 ```json
@@ -56,6 +90,32 @@ Response:
 ### `POST /billboards`
 Body: `Omit<Billboard, id>`
 Response: `Billboard`
+
+### `POST /billboards/bulk`
+Body:
+
+```json
+{
+  "surfaces": [
+    {
+      "title": "Ленинградский пр-т, 20",
+      "type": "billboard",
+      "address": "Москва, Ленинградский проспект, 20",
+      "lat": 55.794,
+      "lng": 37.545,
+      "pricePerWeek": 65000,
+      "size": "3x6 м",
+      "available": true
+    }
+  ]
+}
+```
+
+Response:
+
+```json
+{ "success": true, "created": 1 }
+```
 
 ### `PUT /billboards/:id`
 Body: `Omit<Billboard, id>`

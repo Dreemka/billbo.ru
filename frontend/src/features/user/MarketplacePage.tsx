@@ -1,8 +1,10 @@
-import { observer } from 'mobx-react-lite'
+import { Alert, Button, Card, Col, Collapse, Row, Space, Tag, Typography } from 'antd'
 import { useEffect, useRef, useState } from 'react'
-import { Alert, Button, Card, Col, Row, Space, Tag, Typography } from 'antd'
-import { useStore } from '../../app/store/rootStore'
+
 import { YandexMap } from './YandexMap'
+import { formatExtraField } from '../../shared/lib/formatExtraField'
+import { observer } from 'mobx-react-lite'
+import { useStore } from '../../app/store/rootStore'
 
 export const MarketplacePage = observer(function MarketplacePage() {
   const { billboards, user, session } = useStore()
@@ -57,7 +59,33 @@ export const MarketplacePage = observer(function MarketplacePage() {
                 </Tag>
               </Space>
 
-              <Space wrap style={{ marginBottom: 12 }}>
+              {item.extraFields ? (
+                <Collapse
+                  style={{ marginTop: 5, marginBottom: 5 }}
+                  items={[
+                    {
+                      key: 'extra',
+                      label: 'Дополнительная информация',
+                      children: (
+                        <div>
+                          {Object.entries(item.extraFields)
+                            .filter(([k]) => !['Gid', 'Format', 'Dinamic', 'address', 'Price', 'available', 'Coordinate'].includes(k))
+                            .map(([k, v]) => {
+                              const formatted = formatExtraField(k, v)
+                              return (
+                                <Typography.Paragraph key={k} style={{ margin: '0 0 5px 0', fontSize: 12 }}>
+                                  {formatted.label}: {formatted.value}
+                                </Typography.Paragraph>
+                              )
+                            })}
+                        </div>
+                      ),
+                    },
+                  ]}
+                />
+              ) : null}
+
+              <Space direction="vertical" size={5}>
                 <Button
                   onClick={() => {
                     setMapFocusBillboardId(item.id)
@@ -66,23 +94,23 @@ export const MarketplacePage = observer(function MarketplacePage() {
                 >
                   На карте
                 </Button>
-              </Space>
 
-              <Button
-                type="primary"
-                disabled={!canBuy || session.isLoading || !item.available}
-                onClick={async () => {
-                  const ok = user.pay(item.pricePerWeek)
-                  if (!ok) {
-                    setMessage('Недостаточно средств в кошельке.')
-                    return
-                  }
-                  await billboards.reserve(item.id)
-                  setMessage(`Конструкция "${item.title}" успешно забронирована.`)
-                }}
-              >
-                Забронировать и оплатить
-              </Button>
+                <Button
+                  type="primary"
+                  disabled={!canBuy || session.isLoading || !item.available}
+                  onClick={async () => {
+                    const ok = user.pay(item.pricePerWeek)
+                    if (!ok) {
+                      setMessage('Недостаточно средств в кошельке.')
+                      return
+                    }
+                    await billboards.reserve(item.id)
+                    setMessage(`Конструкция "${item.title}" успешно забронирована.`)
+                  }}
+                >
+                  Забронировать и оплатить
+                </Button>
+              </Space>
             </Card>
           </Col>
         ))}

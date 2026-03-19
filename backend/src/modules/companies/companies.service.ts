@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common'
+import { Injectable } from '@nestjs/common'
 import { PrismaService } from '../../prisma/prisma.service'
 import { UpdateCompanyDto } from './dto/update-company.dto'
 
@@ -10,8 +10,14 @@ export class CompaniesService {
     const company = await this.prisma.company.findUnique({
       where: { ownerUserId: userId },
     })
-    if (!company) throw new NotFoundException('Company profile not found')
-    return company
+    if (!company) {
+      return { name: '', city: '', description: '' }
+    }
+    return {
+      name: company.name,
+      city: company.city,
+      description: company.description ?? '',
+    }
   }
 
   async update(userId: string, dto: UpdateCompanyDto) {

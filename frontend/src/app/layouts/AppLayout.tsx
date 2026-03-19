@@ -8,17 +8,24 @@ export const AppLayout = observer(function AppLayout() {
   const navigate = useNavigate()
   const { pathname } = useLocation()
 
-  const menuItems = [
-    { key: '/', label: 'Главная' },
+  const adminItems = [
     { key: '/admin/company', label: 'Компания' },
     { key: '/admin/billboards', label: 'Рекламные элементы' },
-    { key: '/user/profile', label: 'Профиль' },
-    { key: '/user/wallet', label: 'Кошелек' },
-    { key: '/user/marketplace', label: 'Маркетплейс' },
   ]
 
+  const userItems = [
+    { key: '/user/marketplace', label: 'Маркетплейс' },
+    { key: '/user/profile', label: 'Профиль' },
+    { key: '/user/wallet', label: 'Кошелек' },
+  ]
+
+  const menuItems = session.role === 'admin' ? adminItems : userItems
+
   const selectedKey =
-    menuItems.find((item) => pathname === item.key || pathname.startsWith(`${item.key}/`))?.key ?? '/'
+    menuItems.find((item) => pathname === item.key || pathname.startsWith(`${item.key}/`))?.key ??
+    menuItems[0]?.key
+
+  const roleLabel = session.role === 'admin' ? 'Компания' : 'Клиент'
 
   return (
     <Layout className="app-layout">
@@ -29,7 +36,7 @@ export const AppLayout = observer(function AppLayout() {
         </div>
         <Menu
           mode="inline"
-          selectedKeys={[selectedKey]}
+          selectedKeys={selectedKey ? [selectedKey] : []}
           items={menuItems}
           onClick={({ key }) => navigate(key)}
           className="app-menu"
@@ -39,17 +46,38 @@ export const AppLayout = observer(function AppLayout() {
       <Layout>
         <Layout.Header className="app-header">
           <Space>
-            <Typography.Text>Роль:</Typography.Text>
-            <Tag color={session.role === 'admin' ? 'blue' : 'green'}>{session.role}</Tag>
+            <Typography.Text>Кабинет:</Typography.Text>
+            <Tag color={session.role === 'admin' ? 'blue' : 'green'}>{roleLabel}</Tag>
           </Space>
           <Space wrap>
-            <Button type="primary" disabled={session.isLoading} onClick={() => void session.loginAs('admin')}>
-              Вход как компания
-            </Button>
-            <Button disabled={session.isLoading} onClick={() => void session.loginAs('user')}>
-              Вход как клиент
-            </Button>
-            <Button danger onClick={() => session.logout()}>
+            {import.meta.env.VITE_ENABLE_DEV_LOGIN === 'true' ? (
+              <>
+                <Button
+                  type="primary"
+                  disabled={session.isLoading}
+                  onClick={async () => {
+                    if (await session.loginAs('admin')) navigate('/admin/company', { replace: true })
+                  }}
+                >
+                  Dev: компания
+                </Button>
+                <Button
+                  disabled={session.isLoading}
+                  onClick={async () => {
+                    if (await session.loginAs('user')) navigate('/user/marketplace', { replace: true })
+                  }}
+                >
+                  Dev: клиент
+                </Button>
+              </>
+            ) : null}
+            <Button
+              danger
+              onClick={() => {
+                session.logout()
+                navigate('/login', { replace: true })
+              }}
+            >
               Выход
             </Button>
           </Space>

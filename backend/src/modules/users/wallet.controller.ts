@@ -1,6 +1,6 @@
-import { Body, Controller, Get, Post } from '@nestjs/common'
+import { Body, Controller, Get, Post, UnauthorizedException } from '@nestjs/common'
 import { IsInt, Min } from 'class-validator'
-import { CurrentUser } from '../../common/auth/current-user.decorator'
+import { CurrentUser, type JwtUserPayload } from '../../common/auth/current-user.decorator'
 import { PrismaService } from '../../prisma/prisma.service'
 
 class TopUpDto {
@@ -14,23 +14,14 @@ export class WalletController {
   constructor(private readonly prisma: PrismaService) {}
 
   @Get('me')
-  async me(@CurrentUser() user: { sub: string } | undefined) {
-    const userId = user?.sub ?? 'local-dev'
-    await this.prisma.user.upsert({
-      where: { id: userId },
-      update: {},
-      create: {
-        id: userId,
-        email: `${userId}@local.dev`,
-        fullName: 'Local Dev User',
-        passwordHash: 'local-dev-hash',
-        role: 'USER',
-      },
-    })
+  async me(@CurrentUser() user: JwtUserPayload | undefined) {
+    if (!user?.sub) throw new UnauthorizedException()
+    const exists = await this.prisma.user.findUnique({ where: { id: user.sub } })
+    if (!exists) throw new UnauthorizedException()
 
     const wallet = await this.prisma.wallet.upsert({
-      where: { userId },
-      create: { userId, balance: 0 },
+      where: { userId: user.sub },
+      create: { userId: user.sub, balance: 0 },
       update: {},
       select: { balance: true },
     })
@@ -39,29 +30,21 @@ export class WalletController {
   }
 
   @Post('top-up')
-  async topUp(@CurrentUser() user: { sub: string } | undefined, @Body() dto: TopUpDto) {
-    const userId = user?.sub ?? 'local-dev'
-    await this.prisma.user.upsert({
-      where: { id: userId },
-      update: {},
-      create: {
-        id: userId,
-        email: `${userId}@local.dev`,
-        fullName: 'Local Dev User',
-        passwordHash: 'local-dev-hash',
-        role: 'USER',
-      },
-    })
+  async topUp(@CurrentUser() user: JwtUserPayload | undefined, @Body() dto: TopUpDto) {
+    if (!user?.sub) throw new UnauthorizedException()
+    const exists = await this.prisma.user.findUnique({ where: { id: user.sub } })
+    if (!exists) throw new UnauthorizedException()
+
     const wallet = await this.prisma.wallet.upsert({
-      where: { userId },
-      create: { userId, balance: dto.amount },
+      where: { userId: user.sub },
+      create: { userId: user.sub, balance: dto.amount },
       update: {
         balance: { increment: dto.amount },
       },
       select: { balance: true },
     })
 
-    const walletRecord = await this.prisma.wallet.findUniqueOrThrow({ where: { userId } })
+    const walletRecord = await this.prisma.wallet.findUniqueOrThrow({ where: { userId: user.sub } })
     await this.prisma.walletTransaction.create({
       data: {
         walletId: walletRecord.id,

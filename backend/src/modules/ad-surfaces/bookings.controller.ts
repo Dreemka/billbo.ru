@@ -1,6 +1,7 @@
-import { Body, Controller, Post } from '@nestjs/common'
+import { Body, Controller, ForbiddenException, Post, UnauthorizedException } from '@nestjs/common'
 import { IsString, MinLength } from 'class-validator'
-import { CurrentUser } from '../../common/auth/current-user.decorator'
+import { Role } from '@prisma/client'
+import { CurrentUser, type JwtUserPayload } from '../../common/auth/current-user.decorator'
 import { PrismaService } from '../../prisma/prisma.service'
 
 class CreateBookingDto {
@@ -14,19 +15,15 @@ export class BookingsController {
   constructor(private readonly prisma: PrismaService) {}
 
   @Post()
-  async create(@CurrentUser() user: { sub: string } | undefined, @Body() dto: CreateBookingDto) {
-    const userId = user?.sub ?? 'local-dev'
-    await this.prisma.user.upsert({
-      where: { id: userId },
-      update: {},
-      create: {
-        id: userId,
-        email: `${userId}@local.dev`,
-        fullName: 'Local Dev User',
-        passwordHash: 'local-dev-hash',
-        role: 'USER',
-      },
-    })
+  async create(@CurrentUser() user: JwtUserPayload | undefined, @Body() dto: CreateBookingDto) {
+    if (!user?.sub) throw new UnauthorizedException()
+    const bookingUser = await this.prisma.user.findUnique({ where: { id: user.sub } })
+    if (!bookingUser) throw new UnauthorizedException()
+    if (bookingUser.role !== Role.USER) {
+      throw new ForbiddenException('Бронирование доступно только клиентским аккаунтам')
+    }
+
+    const userId = user.sub
 
     const surface = await this.prisma.adSurface.findUniqueOrThrow({ where: { id: dto.billboardId } })
     if (!surface.isActive) {

@@ -1,8 +1,11 @@
 import type {
-  AuthResponse,
+  AuthDevResponse,
+  AuthTokensResponse,
   Billboard,
   BookingPayload,
   CompanyProfile,
+  LoginPayload,
+  RegisterPayload,
   Role,
   UserProfile,
   WalletTopUpPayload,
@@ -10,8 +13,15 @@ import type {
 import { http } from './http'
 
 export const authApi = {
+  login(payload: LoginPayload) {
+    return http.post<AuthTokensResponse>('/auth/login', payload)
+  },
+  register(payload: RegisterPayload) {
+    return http.post<AuthTokensResponse>('/auth/register', payload)
+  },
+  /** Только для локальной разработки, если задан VITE_ENABLE_DEV_LOGIN */
   loginAs(role: Exclude<Role, 'guest'>) {
-    return http.post<AuthResponse>('/auth/login-as', { role })
+    return http.post<AuthDevResponse>('/auth/login-as', { role })
   },
 }
 
@@ -30,6 +40,9 @@ export const billboardsApi = {
   },
   create(payload: Omit<Billboard, 'id'>) {
     return http.post<Billboard>('/billboards', payload)
+  },
+  bulkCreate(surfaces: Omit<Billboard, 'id'>[]) {
+    return http.post<{ success: boolean; created: number }>(`/billboards/bulk`, { surfaces })
   },
   update(id: string, payload: Omit<Billboard, 'id'>) {
     return http.put<Billboard>(`/billboards/${id}`, payload)
