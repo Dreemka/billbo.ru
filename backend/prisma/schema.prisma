@@ -1,0 +1,152 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  COMPANY
+  SUPERADMIN
+}
+
+enum SurfaceType {
+  BILLBOARD
+  CITYBOARD
+  SUPERSITE
+  DIGITAL
+}
+
+enum BookingStatus {
+  PENDING
+  PAID
+  CANCELLED
+  EXPIRED
+}
+
+enum TransactionType {
+  TOPUP
+  HOLD
+  DEBIT
+  REFUND
+}
+
+model User {
+  id            String          @id @default(cuid())
+  email         String          @unique
+  passwordHash  String
+  role          Role            @default(USER)
+  fullName      String
+  phone         String?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  company       Company?
+  wallet        Wallet?
+  bookings      Booking[]
+  refreshTokens RefreshToken[]
+}
+
+model Company {
+  id          String      @id @default(cuid())
+  ownerUserId String      @unique
+  ownerUser   User        @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+  name        String
+  city        String
+  description String?
+  isVerified  Boolean     @default(false)
+  surfaces    AdSurface[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+}
+
+model AdSurface {
+  id           String        @id @default(cuid())
+  companyId    String
+  company      Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  title        String
+  type         SurfaceType
+  address      String
+  lat          Decimal       @db.Decimal(9, 6)
+  lng          Decimal       @db.Decimal(9, 6)
+  pricePerWeek Int
+  size         String
+  isActive     Boolean       @default(true)
+  media        SurfaceMedia[]
+  bookings     Booking[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model SurfaceMedia {
+  id        String    @id @default(cuid())
+  surfaceId String
+  surface   AdSurface @relation(fields: [surfaceId], references: [id], onDelete: Cascade)
+  url       String
+  sortOrder Int       @default(0)
+}
+
+model Booking {
+  id          String        @id @default(cuid())
+  surfaceId   String
+  surface     AdSurface     @relation(fields: [surfaceId], references: [id], onDelete: Restrict)
+  userId      String
+  user        User          @relation(fields: [userId], references: [id], onDelete: Restrict)
+  dateFrom    DateTime
+  dateTo      DateTime
+  status      BookingStatus @default(PENDING)
+  totalPrice  Int
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  payments    Payment[]
+
+  @@index([surfaceId, dateFrom, dateTo])
+  @@index([userId, createdAt])
+}
+
+model Wallet {
+  id           String              @id @default(cuid())
+  userId       String              @unique
+  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  balance      Int                 @default(0)
+  transactions WalletTransaction[]
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+}
+
+model WalletTransaction {
+  id        String          @id @default(cuid())
+  walletId  String
+  wallet    Wallet          @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  type      TransactionType
+  amount    Int
+  bookingId String?
+  createdAt DateTime        @default(now())
+
+  @@index([walletId, createdAt])
+}
+
+model Payment {
+  id                String   @id @default(cuid())
+  bookingId         String
+  booking           Booking  @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  provider          String
+  providerPaymentId String   @unique
+  status            String
+  amount            Int
+  createdAt         DateTime @default(now())
+}
+
+model RefreshToken {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash  String
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+}

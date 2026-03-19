@@ -1,0 +1,20 @@
+{
+  "name": "billbo-workspace",
+  "private": true,
+  "version": "1.0.0",
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
+  "scripts": {
+    "install:all": "npm install --workspaces",
+    "dev:all": "concurrently -k -n frontend,backend -c cyan,magenta \"npm run dev -w frontend\" \"npm run start:dev -w backend\"",
+    "build:all": "npm run build -w frontend && npm run build -w backend",
+    "lint:all": "npm run lint -w frontend && npm run lint -w backend",
+    "dev:frontend": "npm run dev -w frontend",
+    "dev:backend": "npm run start:dev -w backend"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}
