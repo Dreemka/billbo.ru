@@ -1,13 +1,15 @@
 import { observer } from 'mobx-react-lite'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Alert, Button, Card, Col, Row, Space, Tag, Typography } from 'antd'
 import { useStore } from '../../app/store/rootStore'
-import { LeafletMap } from './LeafletMap'
+import { YandexMap } from './YandexMap'
 
 export const MarketplacePage = observer(function MarketplacePage() {
   const { billboards, user, session } = useStore()
   const canBuy = session.role === 'user'
   const [message, setMessage] = useState('')
+  const [mapFocusBillboardId, setMapFocusBillboardId] = useState<string | null>(null)
+  const mapSectionRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     void billboards.load()
@@ -21,7 +23,9 @@ export const MarketplacePage = observer(function MarketplacePage() {
         Здесь клиент видит доступные элементы, их стоимость, статус и положение на карте.
       </Typography.Paragraph>
 
-      <LeafletMap items={billboards.items} />
+      <div ref={mapSectionRef}>
+        <YandexMap items={billboards.items} focusBillboardId={mapFocusBillboardId} />
+      </div>
 
       {message ? <Alert type="info" showIcon message={message} /> : null}
       {billboards.lastError ? (
@@ -51,6 +55,17 @@ export const MarketplacePage = observer(function MarketplacePage() {
                 <Tag color={item.available ? 'green' : 'red'}>
                   Статус: {item.available ? 'Доступен' : 'Недоступен'}
                 </Tag>
+              </Space>
+
+              <Space wrap style={{ marginBottom: 12 }}>
+                <Button
+                  onClick={() => {
+                    setMapFocusBillboardId(item.id)
+                    mapSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                  }}
+                >
+                  На карте
+                </Button>
               </Space>
 
               <Button

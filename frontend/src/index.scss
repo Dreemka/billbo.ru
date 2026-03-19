@@ -59,8 +59,8 @@ body {
 }
 
 .app-header {
-  background: var(--color-bg-elevated);
-  border-bottom: var(--panel-border-width) solid var(--color-border-soft);
+  background: transparent;
+  // border-bottom: var(--panel-border-width) solid var(--color-border-soft);
   padding: 0 var(--space-3xl);
   height: var(--header-height);
   display: flex;
@@ -147,11 +147,19 @@ body {
   background: var(--color-bg-accent-soft);
 }
 
-.leaflet-map {
+.yandex-map {
   height: 320px;
   border-radius: var(--radius-md);
   overflow: hidden;
   border: var(--panel-border-width) solid var(--color-border-main);
+
+  // Нижняя панель с промо («Как добраться», такси, «Создать карту», условия и т.д.).
+  // Классы API меняют префикс версии — матчим по стабильной части имени.
+  [class*='copyrights-pane'],
+  [class*='copyright-promo'],
+  [class*='map-copyrights-promo'] {
+    display: none !important;
+  }
 }
 
 .notice {
