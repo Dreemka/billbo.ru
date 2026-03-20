@@ -262,6 +262,13 @@ body {
   z-index: 2;
 }
 
+/* Строка таблицы билбордов в режиме редактирования (админка) */
+.admin-billboard-table-row--editing > td {
+  vertical-align: top;
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+
 .marketplace-status-divider {
   margin: 0 0 10px 0 !important;
 }
@@ -372,7 +379,8 @@ body {
 }
 
 .yandex-map {
-  height: 320px;
+  height: 500px;
+  min-height: 500px;
   border-radius: var(--radius-md);
   overflow: hidden;
   border: var(--panel-border-width) solid var(--color-border-main);

@@ -1,14 +1,6 @@
-type ExtraValue = unknown
+import { parseStatusToAvailable } from './parseStatusToAvailable'
 
-function toBoolLikeString(value: string): boolean | null {
-  const v = value.trim().toLowerCase()
-  if (!v) return null
-  if (['true', '1', 'yes', 'y', 'да', 'доступен', 'active', 'available', 'доступно'].some((x) => v === x || v.includes(x)))
-    return true
-  if (['false', '0', 'no', 'n', 'нет', 'недоступен', 'inactive', 'unavailable', 'недоступно'].some((x) => v === x || v.includes(x)))
-    return false
-  return null
-}
+type ExtraValue = unknown
 
 function formatValue(key: string, value: ExtraValue): string {
   const str = value == null ? '' : String(value)
@@ -17,7 +9,7 @@ function formatValue(key: string, value: ExtraValue): string {
   if (key === 'GRP' || key === 'OTS' || key === 'ESPAR') return str
 
   if (key === 'Status') {
-    const b = toBoolLikeString(str)
+    const b = parseStatusToAvailable(value)
     if (b === null) return str
     return b ? 'Доступен' : 'Недоступен'
   }

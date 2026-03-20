@@ -1,4 +1,4 @@
-import { Alert, Badge, Button, Card, Col, Collapse, Divider, Dropdown, Modal, Radio, Row, Space, Table, Typography } from 'antd'
+import { Alert, Badge, Button, Card, Col, Collapse, Divider, Dropdown, Input, Modal, Radio, Row, Space, Table, Typography } from 'antd'
 import {
   AppstoreOutlined,
   CalendarOutlined,
@@ -19,6 +19,8 @@ import { formatExtraField } from '../../shared/lib/formatExtraField'
 import { observer } from 'mobx-react-lite'
 import { parseStatusToAvailable } from '../../shared/lib/parseStatusToAvailable'
 import { useStore } from '../../app/store/rootStore'
+import { ExternalImagePreview } from '../../shared/ui/ExternalImagePreview'
+import { filterBillboardsBySearchQuery } from '../../shared/lib/filterBillboardsBySearchQuery'
 
 export const MarketplacePage = observer(function MarketplacePage() {
   const { billboards, user, session } = useStore()
@@ -27,6 +29,7 @@ export const MarketplacePage = observer(function MarketplacePage() {
   const [mapFocusBillboardId, setMapFocusBillboardId] = useState<string | null>(null)
   const mapSectionRef = useRef<HTMLDivElement | null>(null)
   const [viewMode, setViewMode] = useState<'cards' | 'list'>('cards')
+  const [billboardSearchQuery, setBillboardSearchQuery] = useState('')
   const [favoriteIds, setFavoriteIds] = useState<string[]>([])
   const [onlyFavorites, setOnlyFavorites] = useState(false)
   const [activeExtraBillboardId, setActiveExtraBillboardId] = useState<string | null>(null)
@@ -52,11 +55,22 @@ export const MarketplacePage = observer(function MarketplacePage() {
     return billboards.items.filter((b) => favoriteIdSet.has(b.id))
   }, [onlyFavorites, billboards.items, favoriteIdSet])
 
+  const displayedBillboards = useMemo(
+    () => filterBillboardsBySearchQuery(itemsToShow, billboardSearchQuery),
+    [itemsToShow, billboardSearchQuery],
+  )
+
   useEffect(() => {
     if (!mapFocusBillboardId) return
     if (!onlyFavorites) return
     if (!favoriteIdSet.has(mapFocusBillboardId)) setMapFocusBillboardId(null)
   }, [onlyFavorites, favoriteIdSet, mapFocusBillboardId])
+
+  useEffect(() => {
+    if (!mapFocusBillboardId) return
+    if (displayedBillboards.some((b) => b.id === mapFocusBillboardId)) return
+    setMapFocusBillboardId(null)
+  }, [displayedBillboards, mapFocusBillboardId])
 
   return (
     <>
@@ -67,27 +81,48 @@ export const MarketplacePage = observer(function MarketplacePage() {
         </Typography.Paragraph>
       </div>
 
-      <Card>
-      <div ref={mapSectionRef}>
-        <YandexMap items={itemsToShow} focusBillboardId={mapFocusBillboardId} />
-      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 15 }}>
+        <Card>
+          <div ref={mapSectionRef}>
+            <YandexMap items={displayedBillboards} focusBillboardId={mapFocusBillboardId} />
+          </div>
+        </Card>
 
+        <Card>
       {message ? <Alert type="info" showIcon message={message} /> : null}
       {billboards.lastError ? (
         <Alert type="error" showIcon message={billboards.lastError} style={{ marginTop: 12 }} />
       ) : null}
 
-      <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Radio.Group value={viewMode} onChange={(e) => setViewMode(e.target.value)} optionType="button" buttonStyle="solid">
-          <Radio.Button value="cards">
-            <AppstoreOutlined style={{ marginRight: 6 }} />
-            Карточки
-          </Radio.Button>
-          <Radio.Button value="list">
-            <UnorderedListOutlined style={{ marginRight: 6 }} />
-            Список
-          </Radio.Button>
-        </Radio.Group>
+      <div
+        style={{
+          marginTop: 16,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 12,
+          flexWrap: 'wrap',
+        }}
+      >
+        <Space wrap size={12} style={{ flex: 1, alignItems: 'center' }}>
+          <Radio.Group value={viewMode} onChange={(e) => setViewMode(e.target.value)} optionType="button" buttonStyle="solid">
+            <Radio.Button value="cards">
+              <AppstoreOutlined style={{ marginRight: 6 }} />
+              Карточки
+            </Radio.Button>
+            <Radio.Button value="list">
+              <UnorderedListOutlined style={{ marginRight: 6 }} />
+              Список
+            </Radio.Button>
+          </Radio.Group>
+          <Input.Search
+            allowClear
+            placeholder="Поиск по всем полям…"
+            value={billboardSearchQuery}
+            onChange={(e) => setBillboardSearchQuery(e.target.value)}
+            style={{ width: 'min(100%, 360px)' }}
+          />
+        </Space>
 
         <Button
           type="text"
@@ -100,9 +135,15 @@ export const MarketplacePage = observer(function MarketplacePage() {
         />
       </div>
 
+      {billboardSearchQuery.trim() && displayedBillboards.length === 0 ? (
+        <Typography.Paragraph type="secondary" style={{ marginTop: 16, marginBottom: 0 }}>
+          Ничего не найдено — попробуйте другой запрос.
+        </Typography.Paragraph>
+      ) : null}
+
       {viewMode === 'cards' ? (
         <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
-          {itemsToShow.map((item) => (
+          {displayedBillboards.map((item) => (
             <Col key={item.id} xs={24} sm={12} md={12} lg={8} xl={8}>
               <Card className="app-billboard-card">
                 <div style={{ position: 'absolute', right: 20, top: 20, display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
@@ -259,7 +300,7 @@ export const MarketplacePage = observer(function MarketplacePage() {
           rowKey="id"
           style={{ marginTop: 16 }}
           pagination={{ pageSize: 20 }}
-          dataSource={itemsToShow}
+          dataSource={displayedBillboards}
           columns={[
             {
               title: 'Конструкция',
@@ -440,7 +481,8 @@ export const MarketplacePage = observer(function MarketplacePage() {
           ]}
         />
       )}
-      </Card>
+        </Card>
+      </div>
 
       <Modal
         open={!!photoModalUrl}
@@ -448,13 +490,7 @@ export const MarketplacePage = observer(function MarketplacePage() {
         footer={null}
         onCancel={() => setPhotoModalUrl(null)}
       >
-        {photoModalUrl ? (
-          <img
-            src={photoModalUrl}
-            alt="Фото"
-            style={{ width: '100%', borderRadius: 8, display: 'block' }}
-          />
-        ) : null}
+        {photoModalUrl ? <ExternalImagePreview key={photoModalUrl} src={photoModalUrl} alt="Фото" /> : null}
       </Modal>
     </>
   )

@@ -1,13 +1,27 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Button, Card, Input, Space } from 'antd'
+import { Button, Card, Input, Space, Typography } from 'antd'
 import type { Billboard } from '../../entities/types'
 import { parseStatusToAvailable } from '../../shared/lib/parseStatusToAvailable'
+import { reverseGeocodeLatLngToAddress } from '../../shared/lib/yandexGeocode'
 import { ensureYandexMapsScript, getYandexMapsApiKey } from '../../shared/lib/yandexMapsLoader'
+
+export type MapClickPlacementPayload = {
+  lat: number
+  lng: number
+  address: string
+}
 
 interface YandexMapProps {
   items: Billboard[]
   /** При смене — карта центрируется на точке, открывается балун, метка выделяется. */
   focusBillboardId?: string | null
+  /** Правый клик по карте: метка, обратный геокод и колбэк (контекстное меню браузера отключается). */
+  clickToCreate?: {
+    enabled: boolean
+    onPlaced: (payload: MapClickPlacementPayload) => void
+  }
+  /** Увеличьте число, чтобы сбросить временную метку клика (закрытие модалки и т.п.). */
+  placementClearNonce?: number
 }
 
 /** Минимальный тип метки для preset / балуна (API 2.1). */
@@ -26,17 +40,30 @@ function getBillboardAvailable(item: Billboard) {
   return statusAvailable ?? item.available
 }
 
-export function YandexMap({ items, focusBillboardId = null }: YandexMapProps) {
+export function YandexMap({
+  items,
+  focusBillboardId = null,
+  clickToCreate,
+  placementClearNonce = 0,
+}: YandexMapProps) {
   const hostRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<YandexMapInstance | null>(null)
-  const geoObjectsRef = useRef<YandexGeoObjectCollection | null>(null)
+  const itemsCollectionRef = useRef<YandexGeoObjectCollection | null>(null)
+  const placementCollectionRef = useRef<YandexGeoObjectCollection | null>(null)
   const placemarksByIdRef = useRef<Map<string, YandexPlacemarkHandle>>(new Map())
+  const prevClearNonceRef = useRef<number | undefined>(undefined)
+  const onPlacedRef = useRef(clickToCreate?.onPlaced)
+  onPlacedRef.current = clickToCreate?.onPlaced
+
   const [error, setError] = useState<string | null>(null)
   const [mapReady, setMapReady] = useState(false)
   const [searchValue, setSearchValue] = useState('')
   const [isSearching, setIsSearching] = useState(false)
 
   const apiKey = useMemo(() => getYandexMapsApiKey(), [])
+
+  /** Явная сигнатура набора — иначе при том же reference массива эффект маркеров мог не сработать. */
+  const itemsSignature = useMemo(() => items.map((i) => i.id).join('|'), [items])
 
   useEffect(() => {
     if (!hostRef.current) return
@@ -58,13 +85,14 @@ export function YandexMap({ items, focusBillboardId = null }: YandexMapProps) {
             center: [55.751244, 37.618423],
             zoom: 11,
             controls: ['zoomControl'],
-            // Скрыть ссылку «Открыть в Яндекс Картах» (левый нижний угол).
             suppressMapOpenBlock: true,
             suppressObsoleteBrowserNotifier: true,
           })
 
-          geoObjectsRef.current = new ymaps.GeoObjectCollection()
-          mapRef.current.geoObjects.add(geoObjectsRef.current)
+          itemsCollectionRef.current = new ymaps.GeoObjectCollection()
+          placementCollectionRef.current = new ymaps.GeoObjectCollection()
+          mapRef.current.geoObjects.add(itemsCollectionRef.current)
+          mapRef.current.geoObjects.add(placementCollectionRef.current)
           setMapReady(true)
         })
       })
@@ -73,28 +101,22 @@ export function YandexMap({ items, focusBillboardId = null }: YandexMapProps) {
       })
   }, [apiKey])
 
+  // Маркеры билбордов (отдельная коллекция — не трогаем метку «клик для создания»).
   useEffect(() => {
     if (!mapReady) return
     const ymaps = window.ymaps
     if (!ymaps) return
-    if (!mapRef.current || !geoObjectsRef.current) return
+    if (!mapRef.current || !itemsCollectionRef.current) return
 
-    if (items.length === 0) return
-
-    // Чтобы гарантированно отображать маркеры: пересоздаём коллекцию при смене data.
-    try {
-      mapRef.current.geoObjects.remove(geoObjectsRef.current)
-    } catch {
-      // ignore
-    }
-
-    geoObjectsRef.current = new ymaps.GeoObjectCollection()
-    mapRef.current.geoObjects.add(geoObjectsRef.current)
+    const collection = itemsCollectionRef.current
+    collection.removeAll()
     placemarksByIdRef.current = new Map()
 
+    if (items.length === 0) {
+      return
+    }
+
     items.forEach((item) => {
-      const collection = geoObjectsRef.current
-      if (!collection) return
       const placemark = new ymaps.Placemark(
         [item.lat, item.lng],
         {
@@ -102,7 +124,6 @@ export function YandexMap({ items, focusBillboardId = null }: YandexMapProps) {
           balloonContent: `<strong>${item.title}</strong><br/>${item.address}<br/>Цена: ${item.pricePerWeek.toLocaleString('ru-RU')} RUB/неделя`,
         },
         {
-          // Активная метка подсвечивается во втором эффекте (без пересборки bounds).
           preset: getMarkerPreset(getBillboardAvailable(item), false),
         },
       ) as YandexPlacemarkHandle
@@ -110,16 +131,14 @@ export function YandexMap({ items, focusBillboardId = null }: YandexMapProps) {
       collection.add(placemark)
     })
 
-    // Show all markers initially.
     try {
-      const bounds = geoObjectsRef.current.getBounds()
+      const bounds = collection.getBounds()
       mapRef.current.setBounds(bounds, { checkZoomRange: true, zoomMargin: 20 } as Record<string, unknown>)
       return
     } catch {
-      // ignore and fallback to center
+      // ignore
     }
 
-    // Fallback centering: average of coordinates
     const avgLat = items.reduce((s, x) => s + x.lat, 0) / items.length
     const avgLng = items.reduce((s, x) => s + x.lng, 0) / items.length
     try {
@@ -127,9 +146,70 @@ export function YandexMap({ items, focusBillboardId = null }: YandexMapProps) {
     } catch {
       // ignore
     }
-  }, [items, mapReady])
+  }, [items, itemsSignature, mapReady])
 
-  // Выделение метки, центр и балун при выборе билборда с карточки.
+  useEffect(() => {
+    if (!mapReady || !placementCollectionRef.current) return
+    if (prevClearNonceRef.current === undefined) {
+      prevClearNonceRef.current = placementClearNonce
+      return
+    }
+    if (placementClearNonce !== prevClearNonceRef.current) {
+      placementCollectionRef.current.removeAll()
+      prevClearNonceRef.current = placementClearNonce
+    }
+  }, [placementClearNonce, mapReady])
+
+  useEffect(() => {
+    if (!mapReady || !clickToCreate?.enabled) {
+      placementCollectionRef.current?.removeAll()
+    }
+  }, [clickToCreate?.enabled, mapReady])
+
+  useEffect(() => {
+    if (!mapReady || !mapRef.current || !clickToCreate?.enabled || !apiKey) return
+
+    const map = mapRef.current
+    const handler = (e: unknown) => {
+      const ev = e as { get: (k: string) => unknown }
+      const domEvent = ev.get('domEvent')
+      if (domEvent && typeof (domEvent as Event).preventDefault === 'function') {
+        ;(domEvent as Event).preventDefault()
+      }
+
+      const coords = ev.get('coords') as [number, number]
+      const lat = coords[0]
+      const lng = coords[1]
+      const ymaps = window.ymaps
+      const placement = placementCollectionRef.current
+      if (!ymaps || !placement) return
+
+      placement.removeAll()
+      const pm = new ymaps.Placemark(
+        coords,
+        {
+          hintContent: 'Новая конструкция',
+          balloonContent: 'Определяем адрес…',
+        },
+        { preset: 'islands#violetDotIcon' },
+      )
+      placement.add(pm)
+
+      void reverseGeocodeLatLngToAddress(lat, lng, apiKey)
+        .then((address) => {
+          onPlacedRef.current?.({ lat, lng, address })
+        })
+        .catch(() => {
+          onPlacedRef.current?.({ lat, lng, address: '' })
+        })
+    }
+
+    map.events.add('contextmenu', handler)
+    return () => {
+      map.events.remove('contextmenu', handler)
+    }
+  }, [mapReady, clickToCreate?.enabled, apiKey])
+
   useEffect(() => {
     if (!mapReady || !mapRef.current) return
 
@@ -192,9 +272,21 @@ export function YandexMap({ items, focusBillboardId = null }: YandexMapProps) {
         </Button>
       </Space>
 
-      <div className="yandex-map" ref={hostRef} />
+      {clickToCreate?.enabled ? (
+        <Typography.Paragraph type="secondary" style={{ marginBottom: 8, fontSize: 12 }}>
+          Правый клик по карте — поставить точку новой конструкции и открыть форму с адресом по координатам.
+        </Typography.Paragraph>
+      ) : null}
+
+      <div
+        className="yandex-map"
+        ref={hostRef}
+        onContextMenu={(e) => {
+          if (clickToCreate?.enabled) e.preventDefault()
+        }}
+        style={{ height: 500, minHeight: 500 }}
+      />
       {error ? <p style={{ marginTop: 10, color: '#d94b4b' }}>{error}</p> : null}
     </Card>
   )
 }
-

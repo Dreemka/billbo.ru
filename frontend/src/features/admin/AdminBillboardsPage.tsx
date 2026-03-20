@@ -1,6 +1,20 @@
 import { observer } from 'mobx-react-lite'
-import { useEffect, useRef, useState } from 'react'
-import { AppstoreOutlined, DeleteOutlined, DownloadOutlined, EditFilled, EditOutlined, EllipsisOutlined, FileImageOutlined, GlobalOutlined, InfoCircleOutlined, UnorderedListOutlined, UploadOutlined } from '@ant-design/icons'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import {
+  AppstoreOutlined,
+  CheckOutlined,
+  CloseOutlined,
+  DeleteOutlined,
+  DownloadOutlined,
+  EditFilled,
+  EditOutlined,
+  EllipsisOutlined,
+  FileImageOutlined,
+  GlobalOutlined,
+  InfoCircleOutlined,
+  UnorderedListOutlined,
+  UploadOutlined,
+} from '@ant-design/icons'
 import { Alert, Badge, Button, Card, Col, Collapse, Divider, Dropdown, Form, Input, InputNumber, Modal, Radio, Row, Select, Space, Spin, Table, Typography } from 'antd'
 import { useStore } from '../../app/store/rootStore'
 import type { Billboard } from '../../entities/types'
@@ -11,6 +25,8 @@ import { getYandexMapsApiKey } from '../../shared/lib/yandexMapsLoader'
 import { formatExtraField } from '../../shared/lib/formatExtraField'
 import { notifyError, notifySuccess } from '../../shared/lib/notify'
 import { parseStatusToAvailable } from '../../shared/lib/parseStatusToAvailable'
+import { filterBillboardsBySearchQuery } from '../../shared/lib/filterBillboardsBySearchQuery'
+import { ExternalImagePreview } from '../../shared/ui/ExternalImagePreview'
 import { YandexMap } from '../user/YandexMap'
 
 const emptyForm: Omit<Billboard, 'id'> = {
@@ -41,7 +57,11 @@ export const AdminBillboardsPage = observer(function AdminBillboardsPage() {
   const [activeExtraBillboardId, setActiveExtraBillboardId] = useState<string | null>(null)
   const [mapFocusBillboardId, setMapFocusBillboardId] = useState<string | null>(null)
   const mapSectionRef = useRef<HTMLDivElement | null>(null)
+  const [mapPlacementNonce, setMapPlacementNonce] = useState(0)
+  const [mapPickModalOpen, setMapPickModalOpen] = useState(false)
+  const [mapPickDraft, setMapPickDraft] = useState<Omit<Billboard, 'id'>>(() => ({ ...emptyForm }))
   const [isDeletingAll, setIsDeletingAll] = useState(false)
+  const [billboardSearchQuery, setBillboardSearchQuery] = useState('')
 
   const [editingBillboardId, setEditingBillboardId] = useState<string | null>(null)
   const [editTitleDraft, setEditTitleDraft] = useState('')
@@ -54,6 +74,27 @@ export const AdminBillboardsPage = observer(function AdminBillboardsPage() {
   const [editStatusAvailableDraft, setEditStatusAvailableDraft] = useState(true)
   const [editExtraDraft, setEditExtraDraft] = useState<Record<string, string>>({})
   const [photoModalUrl, setPhotoModalUrl] = useState<string | null>(null)
+
+  const searchFilteredBillboards = useMemo(
+    () => filterBillboardsBySearchQuery(billboards.items, billboardSearchQuery),
+    [billboards.items, billboardSearchQuery],
+  )
+
+  /** Список для карты/карточек/таблицы: поиск + редактируемая строка не пропадает при фильтре. */
+  const displayedBillboards = useMemo(() => {
+    if (!editingBillboardId) return searchFilteredBillboards
+    const editing = billboards.items.find((b) => b.id === editingBillboardId)
+    if (!editing || searchFilteredBillboards.some((b) => b.id === editingBillboardId)) {
+      return searchFilteredBillboards
+    }
+    return [editing, ...searchFilteredBillboards]
+  }, [billboards.items, editingBillboardId, searchFilteredBillboards])
+
+  useEffect(() => {
+    if (!mapFocusBillboardId) return
+    if (displayedBillboards.some((b) => b.id === mapFocusBillboardId)) return
+    setMapFocusBillboardId(null)
+  }, [displayedBillboards, mapFocusBillboardId])
 
   async function confirmAndDelete(id: string) {
     if (!canEdit || session.isLoading || billboards.isSaving) return
@@ -76,6 +117,23 @@ export const AdminBillboardsPage = observer(function AdminBillboardsPage() {
 
   const extraFieldsHiddenKeys = ['Gid', 'Format', 'Dinamic', 'address', 'Price', 'available', 'Coordinate']
 
+  /** Поля раздела «Подробнее» — показываем в форме даже если в данных пусто. */
+  const extraFieldTemplateKeys = [
+    'city',
+    'Side',
+    'Photo',
+    'Light',
+    'Material',
+    'specPrice',
+    'printPrice',
+    'installPrice',
+    'AdditionalInstallPrice',
+    'Tax',
+    'GRP',
+    'OTS',
+    'ESPAR',
+  ] as const
+
   function beginEdit(item: Billboard) {
     const statusAvailable = parseStatusToAvailable(item.extraFields?.Status)
     const nextStatus = statusAvailable ?? item.available
@@ -93,6 +151,9 @@ export const AdminBillboardsPage = observer(function AdminBillboardsPage() {
     setEditStatusAvailableDraft(nextStatus)
 
     const nextExtraDraft: Record<string, string> = {}
+    for (const k of extraFieldTemplateKeys) {
+      nextExtraDraft[k] = ''
+    }
     if (item.extraFields) {
       for (const [k, v] of Object.entries(item.extraFields)) {
         if (extraFieldsHiddenKeys.includes(k) || k === 'Status') continue
@@ -130,7 +191,7 @@ export const AdminBillboardsPage = observer(function AdminBillboardsPage() {
       else nextExtraFields[k] = trimmed
     }
 
-    nextExtraFields.Status = editStatusAvailableDraft ? 'Доступен' : 'Недоступен'
+    nextExtraFields.Status = editStatusAvailableDraft
 
     const payload: Omit<Billboard, 'id'> = {
       title,
@@ -152,6 +213,47 @@ export const AdminBillboardsPage = observer(function AdminBillboardsPage() {
 
     notifySuccess('Конструкция обновлена')
     cancelEdit()
+  }
+
+  function closeMapPickModal() {
+    setMapPickModalOpen(false)
+    setMapPickDraft({ ...emptyForm })
+    setMapPlacementNonce((n) => n + 1)
+  }
+
+  async function submitMapPickDraft() {
+    const title = mapPickDraft.title.trim()
+    const address = mapPickDraft.address.trim()
+    const size = mapPickDraft.size.trim()
+    if (!title || !address || !size || !mapPickDraft.pricePerWeek) {
+      notifyError('Ошибка', 'Укажите заголовок, адрес, размер и цену за неделю.')
+      return
+    }
+    if (!Number.isFinite(mapPickDraft.lat) || !Number.isFinite(mapPickDraft.lng)) {
+      notifyError('Ошибка', 'Некорректные координаты.')
+      return
+    }
+
+    const extraFields: Record<string, unknown> = {
+      Status: mapPickDraft.available,
+    }
+
+    await billboards.add({
+      ...mapPickDraft,
+      title,
+      address,
+      size,
+      pricePerWeek: Math.round(mapPickDraft.pricePerWeek),
+      lat: mapPickDraft.lat,
+      lng: mapPickDraft.lng,
+      extraFields,
+    })
+    if (billboards.lastError) {
+      notifyError('Ошибка сохранения', billboards.lastError)
+      return
+    }
+    notifySuccess('Конструкция добавлена')
+    closeMapPickModal()
   }
 
   async function confirmAndDeleteAll() {
@@ -310,6 +412,7 @@ export const AdminBillboardsPage = observer(function AdminBillboardsPage() {
     headers.forEach((h, idx) => {
       extraFields[h] = (row[idx] ?? '').trim()
     })
+    extraFields.Status = available
 
     return {
       title,
@@ -414,7 +517,7 @@ export const AdminBillboardsPage = observer(function AdminBillboardsPage() {
           if (h === 'address') return item.address
           if (h === 'Price') return item.pricePerWeek
           if (h === 'Coordinate') return `${item.lat}, ${item.lng}`
-          if (h === 'Status') return isAvailable ? 'Доступен' : 'Недоступен'
+          if (h === 'Status') return isAvailable ? 'true' : 'false'
           if (h === 'available') return isAvailable ? 'true' : 'false'
 
           const v = (extraFields as Record<string, unknown>)[h]
@@ -479,15 +582,15 @@ export const AdminBillboardsPage = observer(function AdminBillboardsPage() {
           />
 
           <Button
-            icon={<UploadOutlined />}
+            icon={<DownloadOutlined />}
             disabled={!canEdit || billboards.isSaving}
             onClick={() => fileInputRef.current?.click()}
           >
-            Выберите файл
+            Импорт CSV
           </Button>
 
           <Button
-            icon={<DownloadOutlined />}
+            icon={<UploadOutlined />}
             disabled={!canEdit || billboards.isSaving}
             onClick={() => void exportCsv()}
           >
@@ -759,23 +862,30 @@ export const AdminBillboardsPage = observer(function AdminBillboardsPage() {
             }
             loading={billboards.isSaving}
             onClick={async () => {
-              const extraFields: Record<string, string> = {}
+              const extraFields: Record<string, unknown> = {}
               Object.entries(extraDraft).forEach(([k, v]) => {
-                if (v.trim()) extraFields[k] = v.trim()
+                const trimmed = v.trim()
+                if (!trimmed) return
+                if (k === 'Status') {
+                  const parsed = parseStatusToAvailable(trimmed)
+                  extraFields[k] = parsed !== null ? parsed : trimmed
+                  return
+                }
+                extraFields[k] = trimmed
               })
 
-              // Доступность определяется полем `Status` (если оно заполнено).
+              let availableFlag = form.available
               const statusAvailable = parseStatusToAvailable(extraFields.Status)
               if (statusAvailable !== null) {
-                form.available = statusAvailable
+                availableFlag = statusAvailable
               }
-              // Если статус не заполнен — подставляем из `available`, чтобы в карточке был единый источник.
-              if (!extraFields.Status) {
-                extraFields.Status = form.available ? 'Доступен' : 'Недоступен'
+              if (!('Status' in extraFields)) {
+                extraFields.Status = availableFlag
               }
 
               await billboards.add({
                 ...form,
+                available: availableFlag,
                 extraFields: Object.keys(extraFields).length ? extraFields : undefined,
               })
               if (billboards.lastError) {
@@ -819,36 +929,71 @@ export const AdminBillboardsPage = observer(function AdminBillboardsPage() {
 
         <Card>
           <div ref={mapSectionRef}>
-            <YandexMap items={billboards.items} focusBillboardId={mapFocusBillboardId} />
+            <YandexMap
+              items={displayedBillboards}
+              focusBillboardId={mapFocusBillboardId}
+              placementClearNonce={mapPlacementNonce}
+              clickToCreate={
+                canEdit && yandexKey
+                  ? {
+                      enabled: true,
+                      onPlaced: ({ lat, lng, address }) => {
+                        setMapPickDraft({
+                          ...emptyForm,
+                          lat,
+                          lng,
+                          address: address || '',
+                        })
+                        setMapPickModalOpen(true)
+                      },
+                    }
+                  : undefined
+              }
+            />
           </div>
         </Card>
 
         <Card>
           <div style={{ marginTop: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-            <Radio.Group value={viewMode} onChange={(e) => setViewMode(e.target.value)} optionType="button" buttonStyle="solid">
-              <Radio.Button value="cards">
-                <AppstoreOutlined style={{ marginRight: 6 }} />
-                Карточки
-              </Radio.Button>
-              <Radio.Button value="list">
-                <UnorderedListOutlined style={{ marginRight: 6 }} />
-                Список
-              </Radio.Button>
-            </Radio.Group>
+            <Space wrap size={12} style={{ flex: 1, alignItems: 'center' }}>
+              <Radio.Group value={viewMode} onChange={(e) => setViewMode(e.target.value)} optionType="button" buttonStyle="solid">
+                <Radio.Button value="cards">
+                  <AppstoreOutlined style={{ marginRight: 6 }} />
+                  Карточки
+                </Radio.Button>
+                <Radio.Button value="list">
+                  <UnorderedListOutlined style={{ marginRight: 6 }} />
+                  Список
+                </Radio.Button>
+              </Radio.Group>
+              <Input.Search
+                allowClear
+                placeholder="Поиск по всем полям…"
+                value={billboardSearchQuery}
+                onChange={(e) => setBillboardSearchQuery(e.target.value)}
+                style={{ width: 'min(100%, 360px)' }}
+              />
+            </Space>
 
             <Button
-              danger
+              className="app-delete-btn"
+              icon={<DeleteOutlined />}
               loading={isDeletingAll || billboards.isSaving}
               disabled={!canEdit || billboards.isSaving || isDeletingAll || !billboards.items.length}
               onClick={() => void confirmAndDeleteAll()}
-            >
-              Удалить все!
-            </Button>
+              aria-label="Удалить все"
+            />
           </div>
+
+          {billboardSearchQuery.trim() && searchFilteredBillboards.length === 0 && !editingBillboardId ? (
+            <Typography.Paragraph type="secondary" style={{ marginTop: 16, marginBottom: 0 }}>
+              Ничего не найдено — попробуйте другой запрос.
+            </Typography.Paragraph>
+          ) : null}
 
           {viewMode === 'cards' ? (
             <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
-              {billboards.items.map((item) => (
+              {displayedBillboards.map((item) => (
                 <Col key={item.id} xs={24} sm={12} md={12} lg={8} xl={8}>
                   <Card className="app-billboard-card">
                     <div style={{ position: 'absolute', right: 20, top: 20, display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
@@ -946,41 +1091,37 @@ export const AdminBillboardsPage = observer(function AdminBillboardsPage() {
                           />
                         </Space>
 
-                        <Select<boolean>
-                          value={editStatusAvailableDraft}
-                          onChange={(v) => setEditStatusAvailableDraft(v)}
+                        <Select
+                          value={editStatusAvailableDraft ? 'available' : 'unavailable'}
+                          onChange={(v) => setEditStatusAvailableDraft(v === 'available')}
                           disabled={!canEdit || billboards.isSaving || session.isLoading}
                           style={{ width: '100%' }}
-                        >
-                          <Select.Option value={true}>Доступен</Select.Option>
-                          <Select.Option value={false}>Недоступен</Select.Option>
-                        </Select>
+                          options={[
+                            { value: 'available', label: 'Доступен' },
+                            { value: 'unavailable', label: 'Недоступен' },
+                          ]}
+                        />
 
-                        {item.extraFields && Object.keys(item.extraFields).length > 0 ? (
-                          <>
-                            <Divider className="marketplace-status-divider" />
-                            <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
-                              Подробнее
-                            </Typography.Paragraph>
-                            <Space orientation="vertical" size={5} style={{ width: '100%' }}>
-                              {(() => {
-                                const editableExtraEntries = Object.entries(item.extraFields ?? {}).filter(
-                                  ([k]) => !extraFieldsHiddenKeys.includes(k) && k !== 'Status',
-                                )
-
-                                return editableExtraEntries.map(([k]) => (
-                                  <Input
-                                    key={k}
-                                    placeholder={formatExtraField(k, '').label}
-                                    value={editExtraDraft[k] ?? ''}
-                                    onChange={(e) => setEditExtraDraft((prev) => ({ ...prev, [k]: e.target.value }))}
-                                    disabled={!canEdit || billboards.isSaving || session.isLoading}
-                                  />
-                                ))
-                              })()}
-                            </Space>
-                          </>
-                        ) : null}
+                        <>
+                          <Divider className="marketplace-status-divider" />
+                          <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
+                            Подробнее
+                          </Typography.Paragraph>
+                          <Space orientation="vertical" size={5} style={{ width: '100%' }}>
+                            {Object.keys(editExtraDraft)
+                              .filter((k) => !extraFieldsHiddenKeys.includes(k) && k !== 'Status')
+                              .sort()
+                              .map((k) => (
+                                <Input
+                                  key={k}
+                                  placeholder={formatExtraField(k, '').label}
+                                  value={editExtraDraft[k] ?? ''}
+                                  onChange={(e) => setEditExtraDraft((prev) => ({ ...prev, [k]: e.target.value }))}
+                                  disabled={!canEdit || billboards.isSaving || session.isLoading}
+                                />
+                              ))}
+                          </Space>
+                        </>
 
                         {billboards.lastError && editingBillboardId === item.id ? (
                           <Typography.Paragraph type="danger" style={{ margin: 0 }}>
@@ -1027,34 +1168,259 @@ export const AdminBillboardsPage = observer(function AdminBillboardsPage() {
                           )
                         })()}
 
-                        {item.extraFields && Object.keys(item.extraFields).length > 0 ? (
-                          activeExtraBillboardId === item.id ? null : <Divider className="marketplace-status-divider" />
-                        ) : null}
+                        {(() => {
+                          const detailEntriesForView = Object.entries(item.extraFields ?? {}).filter(
+                            ([k]) => !extraFieldsHiddenKeys.includes(k),
+                          )
+                          const hasDetailRows = detailEntriesForView.length > 0
+                          const showDetailsCollapse = hasDetailRows || canEdit
 
-                        {item.extraFields && Object.keys(item.extraFields).length > 0 ? (
-                          <Collapse
-                            className="marketplace-extra-collapse"
-                            activeKey={activeExtraBillboardId === item.id ? ['extra'] : []}
-                            onChange={(keys) => {
-                              const arr = Array.isArray(keys) ? keys : [keys]
-                              setActiveExtraBillboardId(arr.length ? item.id : null)
-                            }}
-                            items={[
+                          if (!showDetailsCollapse) return null
+
+                          return (
+                            <>
+                              {activeExtraBillboardId === item.id ? null : (
+                                <Divider className="marketplace-status-divider" />
+                              )}
+                              <Collapse
+                                className="marketplace-extra-collapse"
+                                activeKey={activeExtraBillboardId === item.id ? ['extra'] : []}
+                                onChange={(keys) => {
+                                  const arr = Array.isArray(keys) ? keys : [keys]
+                                  setActiveExtraBillboardId(arr.length ? item.id : null)
+                                }}
+                                items={[
+                                  {
+                                    key: 'extra',
+                                    label: 'Подробнее',
+                                    children: (
+                                      <div>
+                                        {!hasDetailRows ? (
+                                          <Typography.Text type="secondary" style={{ fontSize: 13 }}>
+                                            Дополнительные поля не заполнены. Нажмите «Редактировать карточку», чтобы внести
+                                            данные в раздел «Подробнее».
+                                          </Typography.Text>
+                                        ) : (
+                                          detailEntriesForView.map(([k, v]) => {
+                                            const formatted = formatExtraField(k, v)
+                                            const isPhoto = k === 'Photo'
+                                            const url = isPhoto ? (v == null ? '' : String(v).trim()) : ''
+
+                                            if (isPhoto) {
+                                              return (
+                                                <Typography.Paragraph key={k} style={{ margin: '0 0 5px 0' }}>
+                                                  <Button
+                                                    type="text"
+                                                    icon={<FileImageOutlined />}
+                                                    disabled={!url}
+                                                    aria-label={url ? 'Открыть изображение' : 'Нет изображения'}
+                                                    onClick={() => {
+                                                      if (!url) return
+                                                      setPhotoModalUrl(url)
+                                                    }}
+                                                  />
+                                                </Typography.Paragraph>
+                                              )
+                                            }
+
+                                            return (
+                                              <Typography.Paragraph key={k} style={{ margin: '0 0 5px 0' }}>
+                                                {formatted.label}: {formatted.value || '—'}
+                                              </Typography.Paragraph>
+                                            )
+                                          })
+                                        )}
+                                      </div>
+                                    ),
+                                  },
+                                ]}
+                              />
+                            </>
+                          )
+                        })()}
+                      </>
+                    )}
+              </Card>
+                </Col>
+              ))}
+            </Row>
+          ) : (
+            <Table
+              rowKey="id"
+              style={{ marginTop: 16 }}
+              pagination={{ pageSize: 20 }}
+              dataSource={displayedBillboards}
+              onRow={(record) => ({
+                className: editingBillboardId === record.id ? 'admin-billboard-table-row--editing' : undefined,
+              })}
+              columns={[
+                {
+                  title: 'Конструкция',
+                  key: 'title',
+                  render: (_: unknown, item: Billboard) =>
+                    editingBillboardId === item.id ? (
+                      <Space orientation="vertical" size={4} style={{ width: '100%', minWidth: 200 }}>
+                        <Input
+                          value={editTitleDraft}
+                          onChange={(e) => setEditTitleDraft(e.target.value)}
+                          placeholder="Заголовок"
+                          disabled={!canEdit || billboards.isSaving || session.isLoading}
+                        />
+                        <Select<Billboard['type']>
+                          value={editTypeDraft}
+                          onChange={(v) => setEditTypeDraft(v)}
+                          disabled={!canEdit || billboards.isSaving || session.isLoading}
+                          style={{ width: '100%' }}
+                        >
+                          <Select.Option value="billboard">Билборд</Select.Option>
+                          <Select.Option value="cityboard">Ситиборд</Select.Option>
+                          <Select.Option value="supersite">Суперсайт</Select.Option>
+                          <Select.Option value="digital">Digital экран</Select.Option>
+                        </Select>
+                        <Input
+                          value={editSizeDraft}
+                          onChange={(e) => setEditSizeDraft(e.target.value)}
+                          placeholder="Размер"
+                          disabled={!canEdit || billboards.isSaving || session.isLoading}
+                        />
+                        <Space.Compact style={{ width: '100%' }}>
+                          <InputNumber
+                            placeholder="Широта"
+                            value={editLatDraft}
+                            onChange={(v) => setEditLatDraft(v ?? 0)}
+                            disabled={!canEdit || billboards.isSaving || session.isLoading}
+                            style={{ width: '50%' }}
+                          />
+                          <InputNumber
+                            placeholder="Долгота"
+                            value={editLngDraft}
+                            onChange={(v) => setEditLngDraft(v ?? 0)}
+                            disabled={!canEdit || billboards.isSaving || session.isLoading}
+                            style={{ width: '50%' }}
+                          />
+                        </Space.Compact>
+                      </Space>
+                    ) : (
+                      <div>
+                        <div style={{ fontWeight: 600 }}>{item.title}</div>
+                        <div style={{ color: 'rgba(0,0,0,0.6)', fontSize: 12 }}>
+                          {item.type} · {item.size}
+                        </div>
+                      </div>
+                    ),
+                },
+                {
+                  title: 'Адрес',
+                  key: 'address',
+                  render: (_: unknown, item: Billboard) =>
+                    editingBillboardId === item.id ? (
+                      <Input
+                        value={editAddressDraft}
+                        onChange={(e) => setEditAddressDraft(e.target.value)}
+                        placeholder="Адрес"
+                        disabled={!canEdit || billboards.isSaving || session.isLoading}
+                      />
+                    ) : (
+                      <span>{item.address}</span>
+                    ),
+                },
+                {
+                  title: 'Цена',
+                  key: 'price',
+                  render: (_: unknown, item: Billboard) =>
+                    editingBillboardId === item.id ? (
+                      <InputNumber
+                        value={editPriceDraft}
+                        onChange={(v) => setEditPriceDraft(v ?? 0)}
+                        min={0}
+                        style={{ width: '100%' }}
+                        disabled={!canEdit || billboards.isSaving || session.isLoading}
+                      />
+                    ) : (
+                      <span>{item.pricePerWeek.toLocaleString('ru-RU')} RUB / неделя</span>
+                    ),
+                },
+                {
+                  title: 'Статус',
+                  key: 'status',
+                  render: (_: unknown, item: Billboard) =>
+                    editingBillboardId === item.id ? (
+                      <Select
+                        value={editStatusAvailableDraft ? 'available' : 'unavailable'}
+                        onChange={(v) => setEditStatusAvailableDraft(v === 'available')}
+                        disabled={!canEdit || billboards.isSaving || session.isLoading}
+                        style={{ width: '100%', minWidth: 120 }}
+                        options={[
+                          { value: 'available', label: 'Доступен' },
+                          { value: 'unavailable', label: 'Недоступен' },
+                        ]}
+                      />
+                    ) : (() => {
+                      const statusAvailable = parseStatusToAvailable(item.extraFields?.Status)
+                      const isAvailable = statusAvailable ?? item.available
+                      return <Badge status={isAvailable ? 'success' : 'error'} text={isAvailable ? 'Доступен' : 'Недоступен'} />
+                    })(),
+                },
+                {
+                  title: 'Подробнее',
+                  key: 'details',
+                  render: (_: unknown, item: Billboard) => {
+                    if (editingBillboardId === item.id) {
+                      const keys = Object.keys(editExtraDraft)
+                        .filter((k) => !extraFieldsHiddenKeys.includes(k) && k !== 'Status')
+                        .sort()
+                      return (
+                        <Space orientation="vertical" size={4} style={{ width: '100%', minWidth: 220 }}>
+                          {keys.map((k) => (
+                            <Input
+                              key={k}
+                              value={editExtraDraft[k] ?? ''}
+                              placeholder={formatExtraField(k, '').label}
+                              onChange={(e) =>
+                                setEditExtraDraft((prev) => ({
+                                  ...prev,
+                                  [k]: e.target.value,
+                                }))
+                              }
+                              disabled={!canEdit || billboards.isSaving || session.isLoading}
+                            />
+                          ))}
+                        </Space>
+                      )
+                    }
+
+                    const extraEntries = Object.entries(item.extraFields ?? {}).filter(
+                      ([k]) => !extraFieldsHiddenKeys.includes(k),
+                    )
+                    const hasExtra = extraEntries.length > 0
+                    const canOpenDetails = hasExtra || canEdit
+
+                    return (
+                      <div style={{ display: 'flex', justifyContent: 'center', width: '100%' }}>
+                        <Dropdown
+                          trigger={['click']}
+                          disabled={!canOpenDetails}
+                          menu={{
+                            items: [
                               {
-                                key: 'extra',
-                                label: 'Подробнее',
-                                children: (
+                                key: 'details',
+                                label: (
                                   <div>
-                                    {Object.entries(item.extraFields)
-                                      .filter(([k]) => !extraFieldsHiddenKeys.includes(k))
-                                      .map(([k, v]) => {
+                                    {!hasExtra ? (
+                                      <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                                        Нет данных в «Подробнее». Включите «Редактировать», чтобы заполнить поля.
+                                      </Typography.Text>
+                                    ) : (
+                                      extraEntries.map(([k, v]) => {
                                         const formatted = formatExtraField(k, v)
                                         const isPhoto = k === 'Photo'
                                         const url = isPhoto ? (v == null ? '' : String(v).trim()) : ''
-
                                         if (isPhoto) {
                                           return (
-                                            <Typography.Paragraph key={k} style={{ margin: '0 0 5px 0' }}>
+                                            <Typography.Paragraph
+                                              key={k}
+                                              style={{ margin: '0 0 6px 0', fontSize: 12, color: 'rgba(0,0,0,0.85)' }}
+                                            >
                                               <Button
                                                 type="text"
                                                 icon={<FileImageOutlined />}
@@ -1070,123 +1436,27 @@ export const AdminBillboardsPage = observer(function AdminBillboardsPage() {
                                         }
 
                                         return (
-                                          <Typography.Paragraph key={k} style={{ margin: '0 0 5px 0' }}>
-                                            {formatted.label}: {formatted.value}
-                                          </Typography.Paragraph>
-                                        )
-                                      })}
-                                  </div>
-                                ),
-                              },
-                            ]}
-                          />
-                        ) : null}
-                      </>
-                    )}
-              </Card>
-                </Col>
-              ))}
-            </Row>
-          ) : (
-            <Table
-              rowKey="id"
-              style={{ marginTop: 16 }}
-              pagination={{ pageSize: 20 }}
-              dataSource={billboards.items}
-              columns={[
-                {
-                  title: 'Конструкция',
-                  key: 'title',
-                  render: (_: unknown, item: Billboard) => (
-                    <div>
-                      <div style={{ fontWeight: 600 }}>{item.title}</div>
-                      <div style={{ color: 'rgba(0,0,0,0.6)', fontSize: 12 }}>
-                        {item.type} · {item.size}
-                      </div>
-                    </div>
-                  ),
-                },
-                {
-                  title: 'Адрес',
-                  key: 'address',
-                  render: (_: unknown, item: Billboard) => <span>{item.address}</span>,
-                },
-                {
-                  title: 'Цена',
-                  key: 'price',
-                  render: (_: unknown, item: Billboard) => (
-                    <span>{item.pricePerWeek.toLocaleString('ru-RU')} RUB / неделя</span>
-                  ),
-                },
-                {
-                  title: 'Статус',
-                  key: 'status',
-                  render: (_: unknown, item: Billboard) => {
-                    const statusAvailable = parseStatusToAvailable(item.extraFields?.Status)
-                    const isAvailable = statusAvailable ?? item.available
-                    return <Badge status={isAvailable ? 'success' : 'error'} text={isAvailable ? 'Доступен' : 'Недоступен'} />
-                  },
-                },
-                {
-                  title: 'Подробнее',
-                  key: 'details',
-                  render: (_: unknown, item: Billboard) => {
-                    const extraEntries = Object.entries(item.extraFields ?? {}).filter(
-                      ([k]) => !['Gid', 'Format', 'Dinamic', 'address', 'Price', 'available', 'Coordinate'].includes(k),
-                    )
-                    const hasExtra = extraEntries.length > 0
-
-                    return (
-                      <div style={{ display: 'flex', justifyContent: 'center', width: '100%' }}>
-                        <Dropdown
-                          trigger={['click']}
-                          disabled={!hasExtra}
-                          menu={{
-                            items: [
-                              {
-                                key: 'details',
-                                label: (
-                                  <div>
-                                    {extraEntries.map(([k, v]) => {
-                                      const formatted = formatExtraField(k, v)
-                                      const isPhoto = k === 'Photo'
-                                      const url = isPhoto ? (v == null ? '' : String(v).trim()) : ''
-                                      if (isPhoto) {
-                                        return (
                                           <Typography.Paragraph
                                             key={k}
                                             style={{ margin: '0 0 6px 0', fontSize: 12, color: 'rgba(0,0,0,0.85)' }}
                                           >
-                                            <Button
-                                              type="text"
-                                              icon={<FileImageOutlined />}
-                                              disabled={!url}
-                                              aria-label={url ? 'Открыть изображение' : 'Нет изображения'}
-                                              onClick={() => {
-                                                if (!url) return
-                                                setPhotoModalUrl(url)
-                                              }}
-                                            />
+                                            {formatted.label}: {formatted.value || '—'}
                                           </Typography.Paragraph>
                                         )
-                                      }
-
-                                      return (
-                                        <Typography.Paragraph
-                                          key={k}
-                                          style={{ margin: '0 0 6px 0', fontSize: 12, color: 'rgba(0,0,0,0.85)' }}
-                                        >
-                                          {formatted.label}: {formatted.value}
-                                        </Typography.Paragraph>
-                                      )
-                                    })}
+                                      })
+                                    )}
                                   </div>
                                 ),
                               },
                             ],
                           }}
                         >
-                          <Button type="text" icon={<InfoCircleOutlined />} aria-label="Подробнее" disabled={!hasExtra} />
+                          <Button
+                            type="text"
+                            icon={<InfoCircleOutlined />}
+                            aria-label="Подробнее"
+                            disabled={!canOpenDetails}
+                          />
                         </Dropdown>
                       </div>
                     )
@@ -1195,47 +1465,78 @@ export const AdminBillboardsPage = observer(function AdminBillboardsPage() {
                 {
                   title: 'Действия',
                   key: 'actions',
-                  render: (_: unknown, item: Billboard) => (
-                    <Dropdown
-                      trigger={['click']}
-                      menu={{
-                        items: [
-                          {
-                            key: 'on-map',
-                            label: (
-                              <Space size={8}>
-                                <GlobalOutlined />
-                                <span>На карте</span>
-                              </Space>
-                            ),
-                            onClick: () => {
-                              setMapFocusBillboardId(item.id)
-                              mapSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                  render: (_: unknown, item: Billboard) =>
+                    editingBillboardId === item.id ? (
+                      <Space size={8}>
+                        <Button
+                          type="primary"
+                          icon={<CheckOutlined />}
+                          aria-label="Сохранить"
+                          loading={billboards.isSaving}
+                          disabled={!canEdit || session.isLoading}
+                          onClick={() => void saveEdit(item)}
+                        />
+                        <Button
+                          icon={<CloseOutlined />}
+                          aria-label="Отменить"
+                          disabled={billboards.isSaving}
+                          onClick={cancelEdit}
+                        />
+                      </Space>
+                    ) : (
+                      <Dropdown
+                        trigger={['click']}
+                        menu={{
+                          items: [
+                            {
+                              key: 'on-map',
+                              label: (
+                                <Space size={8}>
+                                  <GlobalOutlined />
+                                  <span>На карте</span>
+                                </Space>
+                              ),
+                              onClick: () => {
+                                setMapFocusBillboardId(item.id)
+                                mapSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                              },
                             },
-                          },
-                          {
-                            key: 'delete',
-                            label: (
-                              <Space size={8}>
-                                <DeleteOutlined />
-                                <span>Удалить</span>
-                              </Space>
-                            ),
-                            onClick: () => {
-                              void confirmAndDelete(item.id)
+                            {
+                              key: 'edit',
+                              label: (
+                                <Space size={8}>
+                                  <EditOutlined />
+                                  <span>Редактировать</span>
+                                </Space>
+                              ),
+                              disabled: !canEdit || session.isLoading || billboards.isSaving,
+                              onClick: () => {
+                                beginEdit(item)
+                              },
                             },
-                          },
-                        ],
-                      }}
-                    >
-                      <Button
-                        type="text"
-                        icon={<EllipsisOutlined />}
-                        aria-label="Действия"
-                        disabled={!canEdit || session.isLoading || billboards.isSaving}
-                      />
-                    </Dropdown>
-                  ),
+                            {
+                              key: 'delete',
+                              label: (
+                                <Space size={8}>
+                                  <DeleteOutlined />
+                                  <span>Удалить</span>
+                                </Space>
+                              ),
+                              onClick: () => {
+                                void confirmAndDelete(item.id)
+                              },
+                            },
+                          ],
+                        }}
+                      >
+                        <Button
+                          type="text"
+                          icon={<EllipsisOutlined />}
+                          aria-label="Действия"
+                          disabled={!canEdit || session.isLoading || billboards.isSaving}
+                        />
+                      </Dropdown>
+                    ),
                 },
               ]}
             />
@@ -1244,18 +1545,98 @@ export const AdminBillboardsPage = observer(function AdminBillboardsPage() {
       </div>
 
       <Modal
+        title="Новая конструкция по точке на карте"
+        open={mapPickModalOpen}
+        onCancel={closeMapPickModal}
+        footer={null}
+        destroyOnHidden
+        width={560}
+      >
+        <Space orientation="vertical" size={10} style={{ width: '100%' }}>
+          <Typography.Paragraph type="secondary" style={{ marginBottom: 0, fontSize: 12 }}>
+            Адрес подставлен по координатам клика (можно исправить). Дозаполните поля и сохраните.
+          </Typography.Paragraph>
+          <Input
+            placeholder="Заголовок (Gid / название)"
+            value={mapPickDraft.title}
+            onChange={(e) => setMapPickDraft((d) => ({ ...d, title: e.target.value }))}
+            disabled={!canEdit || billboards.isSaving}
+          />
+          <Select<Billboard['type']>
+            value={mapPickDraft.type}
+            onChange={(v) => setMapPickDraft((d) => ({ ...d, type: v }))}
+            disabled={!canEdit || billboards.isSaving}
+            style={{ width: '100%' }}
+          >
+            <Select.Option value="billboard">Билборд</Select.Option>
+            <Select.Option value="cityboard">Ситиборд</Select.Option>
+            <Select.Option value="supersite">Суперсайт</Select.Option>
+            <Select.Option value="digital">Digital экран</Select.Option>
+          </Select>
+          <Input
+            placeholder="Размер (Format)"
+            value={mapPickDraft.size}
+            onChange={(e) => setMapPickDraft((d) => ({ ...d, size: e.target.value }))}
+            disabled={!canEdit || billboards.isSaving}
+          />
+          <Input
+            placeholder="Адрес"
+            value={mapPickDraft.address}
+            onChange={(e) => setMapPickDraft((d) => ({ ...d, address: e.target.value }))}
+            disabled={!canEdit || billboards.isSaving}
+          />
+          <Space.Compact style={{ width: '100%' }}>
+            <InputNumber
+              placeholder="Широта"
+              value={mapPickDraft.lat}
+              onChange={(v) => setMapPickDraft((d) => ({ ...d, lat: v ?? d.lat }))}
+              disabled={!canEdit || billboards.isSaving}
+              style={{ width: '50%' }}
+            />
+            <InputNumber
+              placeholder="Долгота"
+              value={mapPickDraft.lng}
+              onChange={(v) => setMapPickDraft((d) => ({ ...d, lng: v ?? d.lng }))}
+              disabled={!canEdit || billboards.isSaving}
+              style={{ width: '50%' }}
+            />
+          </Space.Compact>
+          <InputNumber
+            placeholder="Цена за неделю (RUB)"
+            value={mapPickDraft.pricePerWeek}
+            onChange={(v) => setMapPickDraft((d) => ({ ...d, pricePerWeek: v ?? 0 }))}
+            min={0}
+            style={{ width: '100%' }}
+            disabled={!canEdit || billboards.isSaving}
+          />
+          <Select
+            value={mapPickDraft.available ? 'available' : 'unavailable'}
+            onChange={(v) => setMapPickDraft((d) => ({ ...d, available: v === 'available' }))}
+            disabled={!canEdit || billboards.isSaving}
+            style={{ width: '100%' }}
+            options={[
+              { value: 'available', label: 'Доступен' },
+              { value: 'unavailable', label: 'Недоступен' },
+            ]}
+          />
+          <Space orientation="horizontal" size={8}>
+            <Button type="primary" loading={billboards.isSaving} disabled={!canEdit} onClick={() => void submitMapPickDraft()}>
+              Сохранить
+            </Button>
+            <Button disabled={billboards.isSaving} onClick={closeMapPickModal}>
+              Отмена
+            </Button>
+          </Space>
+        </Space>
+      </Modal>
+
+      <Modal
         open={!!photoModalUrl}
         title="Фото"
         footer={null}
         onCancel={() => setPhotoModalUrl(null)}
       >
-        {photoModalUrl ? (
-          <img
-            src={photoModalUrl}
-            alt="Фото"
-            style={{ width: '100%', borderRadius: 8, display: 'block' }}
-          />
-        ) : null}
+        {photoModalUrl ? <ExternalImagePreview key={photoModalUrl} src={photoModalUrl} alt="Фото" /> : null}
       </Modal>
     </>
   )
