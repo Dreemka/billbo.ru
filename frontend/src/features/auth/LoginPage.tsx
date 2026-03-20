@@ -92,7 +92,7 @@ export const LoginPage = observer(function LoginPage() {
         <Tabs
           defaultActiveKey="login"
           centered
-          destroyInactiveTabPane
+          destroyOnHidden
           items={[
             {
               key: 'login',

@@ -5,7 +5,7 @@ export const palette = {
   indigo: '#9826DB',
   slate: '#0f1131',
   sand: '#ffffff',
-  clay: '#0f1131',
+  clay: '#cccccc',
   text: '#444444',
 } as const
 
@@ -14,9 +14,9 @@ export const appThemeToken: ThemeConfig = {
   token: {
     colorPrimary: palette.indigo,
     colorInfo: palette.indigo,
-    colorSuccess: palette.lavender,
+    colorSuccess: '#52c41a',
     colorWarning: palette.clay,
-    colorError: palette.clay,
+    colorError: '#ff4d4f',
     colorTextBase: palette.text,
     colorBgBase: palette.sand,
     colorBorder: palette.clay,

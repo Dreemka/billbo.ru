@@ -9,6 +9,8 @@ import type {
   RegisterPayload,
   Role,
   UserProfile,
+  FavoritesIdsResponse,
+  FavoritesToggleResponse,
   WalletTopUpPayload,
 } from '../../entities/types'
 import { http } from './http'
@@ -68,6 +70,15 @@ export const userApi = {
   },
   topUp(payload: WalletTopUpPayload) {
     return http.post<{ balance: number }>('/wallet/top-up', payload)
+  },
+}
+
+export const favoritesApi = {
+  getIds() {
+    return http.get<FavoritesIdsResponse>('/favorites')
+  },
+  toggle(billboardId: string) {
+    return http.post<FavoritesToggleResponse>('/favorites/toggle', { billboardId })
   },
 }
 

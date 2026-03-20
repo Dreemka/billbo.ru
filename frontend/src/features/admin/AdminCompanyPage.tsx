@@ -64,7 +64,7 @@ export const AdminCompanyPage = observer(function AdminCompanyPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 15 }}>
-      <div style={{ width: '100%' }}>
+      <div style={{ width: '100%', paddingLeft: 20 }}>
         <Typography.Title level={4}>Профиль компании</Typography.Title>
         <Typography.Paragraph>
           Раздел для настройки информации о компании-операторе рекламных поверхностей.
@@ -104,7 +104,7 @@ export const AdminCompanyPage = observer(function AdminCompanyPage() {
                   </Typography.Paragraph>
                 ) : null}
 
-                <Space orientation="vertical" size={5}>
+                <Space orientation="horizontal" size={5}>
                   <Button
                     type="primary"
                     disabled={!canEdit || session.isLoading || !isValidCompany || company.isSaving}
@@ -202,7 +202,7 @@ export const AdminCompanyPage = observer(function AdminCompanyPage() {
                   </Typography.Paragraph>
                 ) : null}
 
-                <Space orientation="vertical" size={5}>
+                <Space orientation="horizontal" size={5}>
                   <Button
                     type="primary"
                     disabled={!canEdit || session.isLoading || !isValidRepProfile || user.isSaving}

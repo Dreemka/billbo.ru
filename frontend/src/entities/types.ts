@@ -65,3 +65,11 @@ export interface WalletTopUpPayload {
 export interface BookingPayload {
   billboardId: string
 }
+
+export interface FavoritesIdsResponse {
+  ids: string[]
+}
+
+export interface FavoritesToggleResponse {
+  favorited: boolean
+}

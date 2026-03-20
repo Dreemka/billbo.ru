@@ -54,6 +54,26 @@ body {
   outline: 1px solid var(--color-focus);
 }
 
+// /* Общая обводка для инпутов (как у карточек) */
+// .ant-input,
+// .ant-input-affix-wrapper,
+// .ant-select-selector,
+// .ant-picker,
+// .ant-input-number .ant-input-number-input {
+//   border: var(--panel-border-width) solid var(--color-border-main) !important;
+//   box-shadow: none !important;
+// }
+
+// .ant-input:focus,
+// .ant-input-affix-wrapper:focus,
+// .ant-input-affix-wrapper-focused,
+// .ant-select-focused .ant-select-selector,
+// .ant-picker-focused,
+// .ant-input-number-focused .ant-input-number-input {
+//   border-color: var(--color-focus) !important;
+//   box-shadow: none !important;
+// }
+
 .app-layout {
   min-height: 100vh;
   height: 100vh;
@@ -97,12 +117,13 @@ body {
   flex-direction: column;
   gap: 6px;
   align-items: flex-start;
+  margin-bottom: 20px;
 }
 
 .app-brand-logo {
   max-width: 100%;
   height: auto;
-  max-height: 63px;
+  max-height: 50px;
 }
 
 .app-brand h4 {
@@ -190,6 +211,96 @@ body {
   border-radius: var(--radius-sm);
   border: 1px solid var(--color-border-soft) !important;
   /* не трогаем background: чтобы hover/active анимации остались как у antd */
+}
+
+.app-delete-btn {
+  border: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  color: #ff4d4f !important;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  padding: 0 !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+  border-radius: var(--radius-sm);
+}
+
+.app-delete-btn:hover,
+.app-delete-btn:active,
+.app-delete-btn:focus-visible {
+  box-shadow: none !important;
+  background: transparent !important;
+}
+
+.app-map-focus-btn {
+  border: none !important;
+  box-shadow: none !important;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  padding: 0 !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+  border-radius: var(--radius-sm);
+  background: transparent !important;
+}
+
+.app-billboard-card {
+  position: relative;
+}
+
+.app-billboard-card-delete {
+  position: absolute !important;
+  top: 12px;
+  right: 12px;
+  z-index: 2;
+}
+
+.marketplace-status-divider {
+  margin: 0 0 10px 0 !important;
+}
+
+.marketplace-status-divider.ant-divider-horizontal::before {
+  border-top-color: var(--color-border-soft) !important;
+}
+
+/* "Дополнительная информация" без контуров/отступов внутри карточек */
+.marketplace-extra-collapse {
+  margin: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: none !important;
+}
+
+.marketplace-extra-collapse.ant-collapse {
+  border: none !important;
+  background: transparent !important;
+}
+
+.marketplace-extra-collapse .ant-collapse-item {
+  border: none !important;
+}
+
+.marketplace-extra-collapse .ant-collapse-header {
+  padding: 0 !important;
+  margin: 0 !important;
+  background: transparent !important;
+}
+
+.marketplace-extra-collapse .ant-collapse-content-box {
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+/* Убрать разделительную линию между панелями Collapse */
+.ant-collapse .ant-collapse-panel {
+  border-top: 0px !important;
 }
 
 .app-toggle-btn:hover,
@@ -292,6 +403,30 @@ body {
   border-color: var(--color-danger) !important;
   color: var(--color-danger) !important;
 }
+
+/* Стили для Modal.confirm (под премиум цвет) */
+.ant-modal-confirm .ant-btn-primary {
+  background: var(--color-focus) !important;
+  border-color: var(--color-focus) !important;
+  color: #fff !important;
+}
+
+.ant-modal-confirm .ant-btn-primary:hover,
+.ant-modal-confirm .ant-btn-primary:active,
+.ant-modal-confirm .ant-btn-primary:focus-visible {
+  background: var(--color-focus) !important;
+  border-color: var(--color-focus) !important;
+  color: #fff !important;
+}
+
+.ant-modal-confirm .ant-btn-default:hover,
+.ant-modal-confirm .ant-btn-default:active,
+.ant-modal-confirm .ant-btn-default:focus-visible {
+  border-color: var(--color-focus) !important;
+  color: var(--color-focus) !important;
+  background: transparent !important;
+}
+
 
 // Упрощаем верстку Form: чтобы шаг между полями был `gap: 15px`,
 // а у самих Form.Item не было стандартных margin'ов от antd.

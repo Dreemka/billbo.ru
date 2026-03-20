@@ -1,70 +1,170 @@
 import { observer } from 'mobx-react-lite'
 import { useEffect, useState } from 'react'
-import { Button, Card, Form, Input, Typography } from 'antd'
+import { Button, Card, Input, Space, Typography } from 'antd'
 import { useStore } from '../../app/store/rootStore'
 import { notifyError, notifySuccess } from '../../shared/lib/notify'
 
 export const UserProfilePage = observer(function UserProfilePage() {
   const { user, session } = useStore()
-  const [fullName, setFullName] = useState(user.profile.fullName)
-  const [email, setEmail] = useState(user.profile.email)
-  const [phone, setPhone] = useState(user.profile.phone)
-  const [avatarUrl, setAvatarUrl] = useState(user.profile.avatarUrl || '')
+  const [editing, setEditing] = useState(false)
+  const [fullNameDraft, setFullNameDraft] = useState(user.profile.fullName)
+  const [emailDraft, setEmailDraft] = useState(user.profile.email)
+  const [phoneDraft, setPhoneDraft] = useState(user.profile.phone)
+  const [avatarUrlDraft, setAvatarUrlDraft] = useState(user.profile.avatarUrl || '')
+
+  const [newPasswordDraft, setNewPasswordDraft] = useState('')
+  const [repeatPasswordDraft, setRepeatPasswordDraft] = useState('')
   const canEdit = session.role === 'user'
-  const isValid = fullName.trim().length > 2 && email.includes('@') && phone.trim().length >= 10
+  const isValid = fullNameDraft.trim().length > 2 && emailDraft.includes('@') && phoneDraft.trim().length >= 10
 
   useEffect(() => {
     if (session.role !== 'user') return
     void user.loadProfile()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session.role])
+  }, [session.role, user])
 
   useEffect(() => {
-    setFullName(user.profile.fullName)
-    setEmail(user.profile.email)
-    setPhone(user.profile.phone)
-    setAvatarUrl(user.profile.avatarUrl || '')
-  }, [user.profile.fullName, user.profile.email, user.profile.phone, user.profile.avatarUrl])
+    if (editing) return
+    setFullNameDraft(user.profile.fullName)
+    setEmailDraft(user.profile.email)
+    setPhoneDraft(user.profile.phone)
+    setAvatarUrlDraft(user.profile.avatarUrl || '')
+    setNewPasswordDraft('')
+    setRepeatPasswordDraft('')
+  }, [editing, user.profile.fullName, user.profile.email, user.profile.phone, user.profile.avatarUrl])
+
+  function resetPasswordDrafts() {
+    setNewPasswordDraft('')
+    setRepeatPasswordDraft('')
+  }
 
   return (
-    <Card>
-      <Typography.Title level={4}>Профиль пользователя</Typography.Title>
-      <Form layout="vertical" className="app-form">
-        <Form.Item label="ФИО">
-          <Input value={fullName} onChange={(event) => setFullName(event.target.value)} disabled={!canEdit} />
-        </Form.Item>
-        <Form.Item label="Email">
-          <Input value={email} onChange={(event) => setEmail(event.target.value)} disabled={!canEdit} />
-        </Form.Item>
-        <Form.Item label="Телефон">
-          <Input value={phone} onChange={(event) => setPhone(event.target.value)} disabled={!canEdit} />
-        </Form.Item>
-        <Form.Item label="Аватар (URL)">
-          <Input value={avatarUrl} onChange={(event) => setAvatarUrl(event.target.value)} disabled={!canEdit} />
-        </Form.Item>
-      </Form>
+    <>
+      <div style={{ paddingLeft: 20 }}>
+        <Typography.Title level={4}>Профиль пользователя</Typography.Title>
+      </div>
 
-      {user.lastError ? (
-        <Typography.Paragraph type="danger" style={{ marginTop: 12 }}>
-          {user.lastError}
-        </Typography.Paragraph>
-      ) : null}
+      <Card>
+        {editing ? (
+          <Space orientation="vertical" size={5} style={{ width: '100%' }}>
+            <Input
+              placeholder="ФИО"
+              value={fullNameDraft}
+              onChange={(event) => setFullNameDraft(event.target.value)}
+              disabled={!canEdit || user.isSaving}
+            />
+            <Input
+              placeholder="Email"
+              value={emailDraft}
+              onChange={(event) => setEmailDraft(event.target.value)}
+              disabled={!canEdit || user.isSaving}
+            />
+            <Input
+              placeholder="Телефон"
+              value={phoneDraft}
+              onChange={(event) => setPhoneDraft(event.target.value)}
+              disabled={!canEdit || user.isSaving}
+            />
+            <Input
+              placeholder="Аватар (URL)"
+              value={avatarUrlDraft}
+              onChange={(event) => setAvatarUrlDraft(event.target.value)}
+              disabled={!canEdit || user.isSaving}
+            />
 
-      <Button
-        type="primary"
-        disabled={!canEdit || session.isLoading || !isValid || user.isSaving}
-        loading={user.isSaving}
-        onClick={async () => {
-          await user.updateProfile({ fullName, email, phone, avatarUrl: avatarUrl.trim() || undefined })
-          if (user.lastError) {
-            notifyError('Ошибка сохранения', user.lastError)
-            return
-          }
-          notifySuccess('Профиль сохранен')
-        }}
-      >
-        Сохранить
-      </Button>
-    </Card>
+            <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
+              Пароли
+            </Typography.Paragraph>
+            <Input.Password
+              placeholder="Новый пароль"
+              value={newPasswordDraft}
+              onChange={(event) => setNewPasswordDraft(event.target.value)}
+              disabled={!canEdit || user.isSaving}
+            />
+            <Input.Password
+              placeholder="Повторите пароль"
+              value={repeatPasswordDraft}
+              onChange={(event) => setRepeatPasswordDraft(event.target.value)}
+              disabled={!canEdit || user.isSaving}
+            />
+
+            {user.lastError ? (
+              <Typography.Paragraph type="danger" style={{ marginTop: 2, marginBottom: 0 }}>
+                {user.lastError}
+              </Typography.Paragraph>
+            ) : null}
+
+            <Space orientation="horizontal" size={5}>
+              <Button
+                type="primary"
+                disabled={!canEdit || session.isLoading || !isValid || user.isSaving}
+                loading={user.isSaving}
+                onClick={async () => {
+                  await user.updateProfile({
+                    fullName: fullNameDraft,
+                    email: emailDraft,
+                    phone: phoneDraft,
+                    avatarUrl: avatarUrlDraft.trim() || undefined,
+                  })
+                  if (user.lastError) {
+                    notifyError('Ошибка сохранения', user.lastError)
+                    return
+                  }
+
+                  const hasPassword = newPasswordDraft.trim().length > 0 || repeatPasswordDraft.trim().length > 0
+                  if (hasPassword) {
+                    if (newPasswordDraft !== repeatPasswordDraft) {
+                      notifyError('Ошибка сохранения', 'Пароли не совпадают')
+                      return
+                    }
+                    await user.changePassword(newPasswordDraft, repeatPasswordDraft)
+                    if (user.lastError) {
+                      notifyError('Ошибка сохранения', user.lastError)
+                      return
+                    }
+                  }
+
+                  notifySuccess('Профиль сохранен')
+                  setEditing(false)
+                  resetPasswordDrafts()
+                }}
+              >
+                Сохранить
+              </Button>
+
+              <Button
+                onClick={() => {
+                  setFullNameDraft(user.profile.fullName)
+                  setEmailDraft(user.profile.email)
+                  setPhoneDraft(user.profile.phone)
+                  setAvatarUrlDraft(user.profile.avatarUrl || '')
+                  setEditing(false)
+                  resetPasswordDrafts()
+                }}
+                disabled={user.isSaving}
+              >
+                Отменить
+              </Button>
+            </Space>
+          </Space>
+        ) : (
+          <Space orientation="vertical" size={5}>
+            <Typography.Paragraph style={{ marginBottom: 0 }}>ФИО: {user.profile.fullName || '—'}</Typography.Paragraph>
+            <Typography.Paragraph style={{ marginBottom: 0 }}>Email: {user.profile.email || '—'}</Typography.Paragraph>
+            <Typography.Paragraph style={{ marginBottom: 0 }}>Телефон: {user.profile.phone || '—'}</Typography.Paragraph>
+
+            {user.lastError ? (
+              <Typography.Paragraph type="danger" style={{ marginTop: 2, marginBottom: 0 }}>
+                {user.lastError}
+              </Typography.Paragraph>
+            ) : null}
+
+            <Button type="primary" disabled={!canEdit} onClick={() => setEditing(true)}>
+              Редактировать
+            </Button>
+          </Space>
+        )}
+
+      </Card>
+    </>
   )
 })

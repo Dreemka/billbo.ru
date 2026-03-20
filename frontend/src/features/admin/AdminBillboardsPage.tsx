@@ -1,7 +1,7 @@
 import { observer } from 'mobx-react-lite'
 import { useEffect, useRef, useState } from 'react'
-import { AppstoreOutlined, UnorderedListOutlined } from '@ant-design/icons'
-import { Alert, Button, Card, Col, Collapse, Form, Input, InputNumber, Radio, Row, Select, Space, Spin, Table, Typography } from 'antd'
+import { AppstoreOutlined, DeleteOutlined, EllipsisOutlined, GlobalOutlined, InfoCircleOutlined, UnorderedListOutlined, UploadOutlined } from '@ant-design/icons'
+import { Alert, Badge, Button, Card, Col, Collapse, Divider, Dropdown, Form, Input, InputNumber, Modal, Radio, Row, Select, Space, Spin, Table, Typography } from 'antd'
 import { useStore } from '../../app/store/rootStore'
 import type { Billboard } from '../../entities/types'
 import { tryParseLatLngFromText } from '../../shared/lib/parseCoords'
@@ -11,6 +11,7 @@ import { getYandexMapsApiKey } from '../../shared/lib/yandexMapsLoader'
 import { formatExtraField } from '../../shared/lib/formatExtraField'
 import { notifyError, notifySuccess } from '../../shared/lib/notify'
 import { parseStatusToAvailable } from '../../shared/lib/parseStatusToAvailable'
+import { YandexMap } from '../user/YandexMap'
 
 const emptyForm: Omit<Billboard, 'id'> = {
   title: '',
@@ -37,6 +38,28 @@ export const AdminBillboardsPage = observer(function AdminBillboardsPage() {
   const [csvError, setCsvError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const [viewMode, setViewMode] = useState<'cards' | 'list'>('cards')
+  const [activeExtraBillboardId, setActiveExtraBillboardId] = useState<string | null>(null)
+  const [mapFocusBillboardId, setMapFocusBillboardId] = useState<string | null>(null)
+  const mapSectionRef = useRef<HTMLDivElement | null>(null)
+
+  async function confirmAndDelete(id: string) {
+    if (!canEdit || session.isLoading || billboards.isSaving) return
+
+    Modal.confirm({
+      title: 'Удалить конструкцию?',
+      content: 'Действие нельзя отменить.',
+      okText: 'Удалить',
+      cancelText: 'Отмена',
+      onOk: async () => {
+        await billboards.remove(id)
+        if (billboards.lastError) {
+          notifyError('Ошибка удаления', billboards.lastError)
+          return
+        }
+        notifySuccess('Конструкция удалена')
+      },
+    })
+  }
 
   const [extraDraft, setExtraDraft] = useState<Record<string, string>>({
     GRP: '',
@@ -231,10 +254,12 @@ export const AdminBillboardsPage = observer(function AdminBillboardsPage() {
 
   return (
     <>
-      <Typography.Title level={4}>Рекламные элементы компании</Typography.Title>
-      <Typography.Paragraph>
-        Добавляйте, обновляйте и удаляйте карточки конструкций, доступных для аренды.
-      </Typography.Paragraph>
+      <div style={{ paddingLeft: 20 }}>
+        <Typography.Title level={4}>Рекламные элементы компании</Typography.Title>
+        <Typography.Paragraph>
+          Добавляйте, обновляйте и удаляйте карточки конструкций, доступных для аренды.
+        </Typography.Paragraph>
+      </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 15 }}>
         <Card type="inner" title="Импорт CSV" loading={csvParsing}>
@@ -243,6 +268,7 @@ export const AdminBillboardsPage = observer(function AdminBillboardsPage() {
             ref={fileInputRef}
             type="file"
             accept=".csv,text/csv"
+            style={{ display: 'none' }}
             onChange={(e) => {
               const file = e.currentTarget.files?.[0]
               if (!file) return
@@ -252,6 +278,14 @@ export const AdminBillboardsPage = observer(function AdminBillboardsPage() {
             }}
             disabled={!canEdit || billboards.isSaving}
           />
+
+          <Button
+            icon={<UploadOutlined />}
+            disabled={!canEdit || billboards.isSaving}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            Выберите файл
+          </Button>
 
           {csvSurfaces.length ? (
             <Alert
@@ -577,6 +611,12 @@ export const AdminBillboardsPage = observer(function AdminBillboardsPage() {
         </Card>
 
         <Card>
+          <div ref={mapSectionRef}>
+            <YandexMap items={billboards.items} focusBillboardId={mapFocusBillboardId} />
+          </div>
+        </Card>
+
+        <Card>
           <div style={{ marginTop: 0 }}>
             <Radio.Group value={viewMode} onChange={(e) => setViewMode(e.target.value)} optionType="button" buttonStyle="solid">
               <Radio.Button value="cards">
@@ -594,7 +634,29 @@ export const AdminBillboardsPage = observer(function AdminBillboardsPage() {
             <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
               {billboards.items.map((item) => (
                 <Col key={item.id} xs={24} sm={12} md={12} lg={8} xl={8}>
-                  <Card>
+                  <Card className="app-billboard-card">
+                    <div style={{ position: 'absolute', right: 20, top: 20, display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                      <Button
+                        type="text"
+                        className="app-map-focus-btn"
+                        icon={<GlobalOutlined />}
+                        aria-label="На карте"
+                        onClick={() => {
+                          setMapFocusBillboardId(item.id)
+                          mapSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                        }}
+                      />
+                      <Button
+                        disabled={!canEdit || session.isLoading || billboards.isSaving}
+                        className="app-delete-btn"
+                        onClick={() => {
+                          void confirmAndDelete(item.id)
+                        }}
+                        aria-label="Удалить"
+                      >
+                        <DeleteOutlined />
+                      </Button>
+                    </div>
                 <Typography.Title level={5} style={{ marginTop: 0 }}>
                   {item.title}
                 </Typography.Title>
@@ -608,22 +670,32 @@ export const AdminBillboardsPage = observer(function AdminBillboardsPage() {
                 <Typography.Paragraph>
                   Локация: {item.lat}, {item.lng}
                 </Typography.Paragraph>
-                <Typography.Text>
-                Статус:{' '}
                 {(() => {
                   const statusAvailable = parseStatusToAvailable(item.extraFields?.Status)
                   const isAvailable = statusAvailable ?? item.available
-                  return isAvailable ? 'Доступен' : 'Забронирован'
+                  return (
+                    <div style={{ marginBottom: 12 }}>
+                      <Badge status={isAvailable ? 'success' : 'error'} text={isAvailable ? 'Доступен' : 'Недоступен'} />
+                    </div>
+                  )
                 })()}
-                </Typography.Text>
+
+                {item.extraFields && Object.keys(item.extraFields).length > 0 ? (
+                  activeExtraBillboardId === item.id ? null : <Divider className="marketplace-status-divider" />
+                ) : null}
 
                 {item.extraFields && Object.keys(item.extraFields).length > 0 ? (
                   <Collapse
-                    style={{ marginTop: 5, marginBottom: 5 }}
+                    className="marketplace-extra-collapse"
+                    activeKey={activeExtraBillboardId === item.id ? ['extra'] : []}
+                    onChange={(keys) => {
+                      const arr = Array.isArray(keys) ? keys : [keys]
+                      setActiveExtraBillboardId(arr.length ? item.id : null)
+                    }}
                     items={[
                       {
                         key: 'extra',
-                        label: 'Дополнительная информация',
+                        label: 'Подробнее',
                         children: (
                           <div>
                             {Object.entries(item.extraFields)
@@ -631,7 +703,7 @@ export const AdminBillboardsPage = observer(function AdminBillboardsPage() {
                               .map(([k, v]) => {
                                 const formatted = formatExtraField(k, v)
                                 return (
-                                  <Typography.Paragraph key={k} style={{ margin: '0 0 5px 0', fontSize: 12 }}>
+                                  <Typography.Paragraph key={k} style={{ margin: '0 0 5px 0' }}>
                                     {formatted.label}: {formatted.value}
                                   </Typography.Paragraph>
                                 )
@@ -642,23 +714,6 @@ export const AdminBillboardsPage = observer(function AdminBillboardsPage() {
                     ]}
                   />
                 ) : null}
-
-                <Space style={{ marginTop: 5 }}>
-                  <Button
-                    danger
-                    disabled={!canEdit || session.isLoading || billboards.isSaving}
-                    onClick={async () => {
-                      await billboards.remove(item.id)
-                      if (billboards.lastError) {
-                        notifyError('Ошибка удаления', billboards.lastError)
-                        return
-                      }
-                      notifySuccess('Конструкция удалена')
-                    }}
-                  >
-                    Удалить
-                  </Button>
-                </Space>
               </Card>
                 </Col>
               ))}
@@ -697,36 +752,98 @@ export const AdminBillboardsPage = observer(function AdminBillboardsPage() {
                 {
                   title: 'Статус',
                   key: 'status',
-                  render: (_: unknown, item: Billboard) => (
-                    <span style={{ display: 'inline-flex', alignItems: 'center' }}>
-                      <Typography.Text style={{ marginRight: 8 }}>
-                        {(() => {
-                          const statusAvailable = parseStatusToAvailable(item.extraFields?.Status)
-                          const isAvailable = statusAvailable ?? item.available
-                          return isAvailable ? 'Доступен' : 'Забронирован'
-                        })()}
-                      </Typography.Text>
-                    </span>
-                  ),
+                  render: (_: unknown, item: Billboard) => {
+                    const statusAvailable = parseStatusToAvailable(item.extraFields?.Status)
+                    const isAvailable = statusAvailable ?? item.available
+                    return <Badge status={isAvailable ? 'success' : 'error'} text={isAvailable ? 'Доступен' : 'Недоступен'} />
+                  },
+                },
+                {
+                  title: 'Подробнее',
+                  key: 'details',
+                  render: (_: unknown, item: Billboard) => {
+                    const extraEntries = Object.entries(item.extraFields ?? {}).filter(
+                      ([k]) => !['Gid', 'Format', 'Dinamic', 'address', 'Price', 'available', 'Coordinate'].includes(k),
+                    )
+                    const hasExtra = extraEntries.length > 0
+
+                    return (
+                      <div style={{ display: 'flex', justifyContent: 'center', width: '100%' }}>
+                        <Dropdown
+                          trigger={['click']}
+                          disabled={!hasExtra}
+                          menu={{
+                            items: [
+                              {
+                                key: 'details',
+                                label: (
+                                  <div>
+                                    {extraEntries.map(([k, v]) => {
+                                      const formatted = formatExtraField(k, v)
+                                      return (
+                                        <Typography.Paragraph
+                                          key={k}
+                                          style={{ margin: '0 0 6px 0', fontSize: 12, color: 'rgba(0,0,0,0.85)' }}
+                                        >
+                                          {formatted.label}: {formatted.value}
+                                        </Typography.Paragraph>
+                                      )
+                                    })}
+                                  </div>
+                                ),
+                              },
+                            ],
+                          }}
+                        >
+                          <Button type="text" icon={<InfoCircleOutlined />} aria-label="Подробнее" disabled={!hasExtra} />
+                        </Dropdown>
+                      </div>
+                    )
+                  },
                 },
                 {
                   title: 'Действия',
                   key: 'actions',
                   render: (_: unknown, item: Billboard) => (
-                    <Button
-                      danger
-                      disabled={!canEdit || session.isLoading || billboards.isSaving}
-                      onClick={async () => {
-                        await billboards.remove(item.id)
-                        if (billboards.lastError) {
-                          notifyError('Ошибка удаления', billboards.lastError)
-                          return
-                        }
-                        notifySuccess('Конструкция удалена')
+                    <Dropdown
+                      trigger={['click']}
+                      menu={{
+                        items: [
+                          {
+                            key: 'on-map',
+                            label: (
+                              <Space size={8}>
+                                <GlobalOutlined />
+                                <span>На карте</span>
+                              </Space>
+                            ),
+                            onClick: () => {
+                              setMapFocusBillboardId(item.id)
+                              mapSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                            },
+                          },
+                          {
+                            key: 'delete',
+                            label: (
+                              <Space size={8}>
+                                <DeleteOutlined />
+                                <span>Удалить</span>
+                              </Space>
+                            ),
+                            onClick: () => {
+                              void confirmAndDelete(item.id)
+                            },
+                          },
+                        ],
                       }}
                     >
-                      Удалить
-                    </Button>
+                      <Button
+                        type="text"
+                        icon={<EllipsisOutlined />}
+                        aria-label="Действия"
+                        disabled={!canEdit || session.isLoading || billboards.isSaving}
+                      />
+                    </Dropdown>
                   ),
                 },
               ]}

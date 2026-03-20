@@ -1,12 +1,13 @@
-import { Avatar, Button, Layout, Menu, Space, Typography } from 'antd'
-import { LogoutOutlined, LeftOutlined, RightOutlined } from '@ant-design/icons'
-import { observer } from 'mobx-react-lite'
+import { AppstoreOutlined, ShoppingOutlined, UserOutlined, WalletOutlined } from '@ant-design/icons'
+import { Avatar, Button, Layout, Menu, Typography } from 'antd'
+import { LeftOutlined, LogoutOutlined, RightOutlined } from '@ant-design/icons'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useEffect, useState } from 'react'
-import { useStore } from '../store/rootStore'
-import { AppstoreOutlined, ShoppingOutlined, UserOutlined, WalletOutlined } from '@ant-design/icons'
-import logoUrl from '../../assets/imgages/logo-full.svg'
+
 import logoMinUrl from '../../assets/imgages/logo-min.svg'
+import logoUrl from '../../assets/imgages/logo-full.svg'
+import { observer } from 'mobx-react-lite'
+import { useStore } from '../store/rootStore'
 
 export const AppLayout = observer(function AppLayout() {
   const { session, user } = useStore()
@@ -60,7 +61,7 @@ export const AppLayout = observer(function AppLayout() {
         <div className="app-sider-inner">
           <div className="app-brand">
             <img className="app-brand-logo" src={collapsed ? logoMinUrl : logoUrl} alt="Billbo.ru" />
-            {!collapsed ? <Typography.Text type="secondary">Платформа наружной рекламы</Typography.Text> : null}
+            {/* {!collapsed ? <Typography.Text type="secondary">Платформа наружной рекламы</Typography.Text> : null} */}
           </div>
 
           <Menu
@@ -105,32 +106,6 @@ export const AppLayout = observer(function AppLayout() {
       </Layout.Sider>
 
       <Layout className="app-right-layout">
-        <Layout.Header className="app-header">
-          <Space wrap style={{ justifyContent: 'flex-end', width: '100%' }}>
-            {import.meta.env.VITE_ENABLE_DEV_LOGIN === 'true' ? (
-              <>
-                <Button
-                  type="primary"
-                  disabled={session.isLoading}
-                  onClick={async () => {
-                    if (await session.loginAs('admin')) navigate('/admin/company', { replace: true })
-                  }}
-                >
-                  Dev: компания
-                </Button>
-                <Button
-                  disabled={session.isLoading}
-                  onClick={async () => {
-                    if (await session.loginAs('user')) navigate('/user/marketplace', { replace: true })
-                  }}
-                >
-                  Dev: клиент
-                </Button>
-              </>
-            ) : null}
-          </Space>
-        </Layout.Header>
-
         <Layout.Content className="app-content">
           <Outlet />
         </Layout.Content>

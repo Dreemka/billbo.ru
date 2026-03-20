@@ -16,11 +16,14 @@ export const WalletPage = observer(function WalletPage() {
   }, [session.role])
 
   return (
-    <Card>
-      <Typography.Title level={4}>Кошелек</Typography.Title>
-      <Typography.Paragraph>
-        Текущий баланс: {user.walletBalance.toLocaleString('ru-RU')} RUB
-      </Typography.Paragraph>
+    <>
+      <div style={{ paddingLeft: 20 }}>
+        <Typography.Title level={4}>Кошелек</Typography.Title>
+        <Typography.Paragraph>
+          Текущий баланс: {user.walletBalance.toLocaleString('ru-RU')} RUB
+        </Typography.Paragraph>
+      </div>
+      <Card>
       {user.lastError ? (
         <Typography.Paragraph type="danger" style={{ marginTop: 12 }}>
           {user.lastError}
@@ -49,6 +52,7 @@ export const WalletPage = observer(function WalletPage() {
           Пополнить
         </Button>
       </Space>
-    </Card>
+      </Card>
+    </>
   )
 })
