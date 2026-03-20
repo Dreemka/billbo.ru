@@ -1,4 +1,4 @@
-import { Alert, Badge, Button, Card, Col, Collapse, Divider, Dropdown, Radio, Row, Space, Table, Typography } from 'antd'
+import { Alert, Badge, Button, Card, Col, Collapse, Divider, Dropdown, Modal, Radio, Row, Space, Table, Typography } from 'antd'
 import {
   AppstoreOutlined,
   CalendarOutlined,
@@ -6,6 +6,7 @@ import {
   GlobalOutlined,
   HeartFilled,
   HeartOutlined,
+  FileImageOutlined,
   InfoCircleOutlined,
   UnorderedListOutlined,
 } from '@ant-design/icons'
@@ -29,6 +30,7 @@ export const MarketplacePage = observer(function MarketplacePage() {
   const [favoriteIds, setFavoriteIds] = useState<string[]>([])
   const [onlyFavorites, setOnlyFavorites] = useState(false)
   const [activeExtraBillboardId, setActiveExtraBillboardId] = useState<string | null>(null)
+  const [photoModalUrl, setPhotoModalUrl] = useState<string | null>(null)
 
   const favoriteIdSet = useMemo(() => new Set(favoriteIds), [favoriteIds])
 
@@ -190,6 +192,24 @@ export const MarketplacePage = observer(function MarketplacePage() {
                               .filter(([k]) => !['Gid', 'Format', 'Dinamic', 'address', 'Price', 'available', 'Coordinate'].includes(k))
                               .map(([k, v]) => {
                                 const formatted = formatExtraField(k, v)
+                                const isPhoto = k === 'Photo'
+                                const url = isPhoto ? (v == null ? '' : String(v).trim()) : ''
+                                if (isPhoto) {
+                                  return (
+                                    <Typography.Paragraph key={k} style={{ margin: '0 0 5px 0' }}>
+                                      <Button
+                                        type="text"
+                                        icon={<FileImageOutlined />}
+                                        disabled={!url}
+                                        aria-label={url ? 'Открыть изображение' : 'Нет изображения'}
+                                        onClick={() => {
+                                          if (!url) return
+                                          setPhotoModalUrl(url)
+                                        }}
+                                      />
+                                    </Typography.Paragraph>
+                                  )
+                                }
                                 return (
                                   <Typography.Paragraph key={k} style={{ margin: '0 0 5px 0' }}>
                                     {formatted.label}: {formatted.value}
@@ -293,6 +313,24 @@ export const MarketplacePage = observer(function MarketplacePage() {
                               <div>
                                 {extraEntries.map(([k, v]) => {
                                   const formatted = formatExtraField(k, v)
+                                  const isPhoto = k === 'Photo'
+                                  const url = isPhoto ? (v == null ? '' : String(v).trim()) : ''
+                                  if (isPhoto) {
+                                    return (
+                                      <Typography.Paragraph key={k} style={{ margin: '0 0 6px 0', fontSize: 12, color: 'rgba(0,0,0,0.85)' }}>
+                                        <Button
+                                          type="text"
+                                          icon={<FileImageOutlined />}
+                                          disabled={!url}
+                                          aria-label={url ? 'Открыть изображение' : 'Нет изображения'}
+                                          onClick={() => {
+                                            if (!url) return
+                                            setPhotoModalUrl(url)
+                                          }}
+                                        />
+                                      </Typography.Paragraph>
+                                    )
+                                  }
                                   return (
                                     <Typography.Paragraph
                                       key={k}
@@ -403,6 +441,21 @@ export const MarketplacePage = observer(function MarketplacePage() {
         />
       )}
       </Card>
+
+      <Modal
+        open={!!photoModalUrl}
+        title="Фото"
+        footer={null}
+        onCancel={() => setPhotoModalUrl(null)}
+      >
+        {photoModalUrl ? (
+          <img
+            src={photoModalUrl}
+            alt="Фото"
+            style={{ width: '100%', borderRadius: 8, display: 'block' }}
+          />
+        ) : null}
+      </Modal>
     </>
   )
 })

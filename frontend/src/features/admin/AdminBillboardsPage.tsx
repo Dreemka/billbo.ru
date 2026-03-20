@@ -1,6 +1,6 @@
 import { observer } from 'mobx-react-lite'
 import { useEffect, useRef, useState } from 'react'
-import { AppstoreOutlined, DeleteOutlined, DownloadOutlined, EditFilled, EditOutlined, EllipsisOutlined, GlobalOutlined, InfoCircleOutlined, UnorderedListOutlined, UploadOutlined } from '@ant-design/icons'
+import { AppstoreOutlined, DeleteOutlined, DownloadOutlined, EditFilled, EditOutlined, EllipsisOutlined, FileImageOutlined, GlobalOutlined, InfoCircleOutlined, UnorderedListOutlined, UploadOutlined } from '@ant-design/icons'
 import { Alert, Badge, Button, Card, Col, Collapse, Divider, Dropdown, Form, Input, InputNumber, Modal, Radio, Row, Select, Space, Spin, Table, Typography } from 'antd'
 import { useStore } from '../../app/store/rootStore'
 import type { Billboard } from '../../entities/types'
@@ -41,6 +41,7 @@ export const AdminBillboardsPage = observer(function AdminBillboardsPage() {
   const [activeExtraBillboardId, setActiveExtraBillboardId] = useState<string | null>(null)
   const [mapFocusBillboardId, setMapFocusBillboardId] = useState<string | null>(null)
   const mapSectionRef = useRef<HTMLDivElement | null>(null)
+  const [isDeletingAll, setIsDeletingAll] = useState(false)
 
   const [editingBillboardId, setEditingBillboardId] = useState<string | null>(null)
   const [editTitleDraft, setEditTitleDraft] = useState('')
@@ -52,6 +53,7 @@ export const AdminBillboardsPage = observer(function AdminBillboardsPage() {
   const [editLngDraft, setEditLngDraft] = useState<number>(37.618)
   const [editStatusAvailableDraft, setEditStatusAvailableDraft] = useState(true)
   const [editExtraDraft, setEditExtraDraft] = useState<Record<string, string>>({})
+  const [photoModalUrl, setPhotoModalUrl] = useState<string | null>(null)
 
   async function confirmAndDelete(id: string) {
     if (!canEdit || session.isLoading || billboards.isSaving) return
@@ -150,6 +152,42 @@ export const AdminBillboardsPage = observer(function AdminBillboardsPage() {
 
     notifySuccess('Конструкция обновлена')
     cancelEdit()
+  }
+
+  async function confirmAndDeleteAll() {
+    if (!canEdit || session.isLoading || billboards.isSaving || isDeletingAll) return
+    const ids = billboards.items.map((b) => b.id)
+    if (ids.length === 0) {
+      notifyError('Удаление невозможно', 'Список билбордов пуст.')
+      return
+    }
+
+    Modal.confirm({
+      title: 'Удалить все конструкции?',
+      content: `Будет удалено: ${ids.length}. Действие нельзя отменить.`,
+      okText: 'Удалить все!',
+      cancelText: 'Отмена',
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        setIsDeletingAll(true)
+        try {
+          if (editingBillboardId) cancelEdit()
+
+          for (const id of ids) {
+            await billboards.remove(id)
+          }
+
+          if (billboards.lastError) {
+            notifyError('Ошибка удаления', billboards.lastError)
+            return
+          }
+
+          notifySuccess('Все конструкции удалены')
+        } finally {
+          setIsDeletingAll(false)
+        }
+      },
+    })
   }
 
   const [extraDraft, setExtraDraft] = useState<Record<string, string>>({
@@ -786,7 +824,7 @@ export const AdminBillboardsPage = observer(function AdminBillboardsPage() {
         </Card>
 
         <Card>
-          <div style={{ marginTop: 0 }}>
+          <div style={{ marginTop: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
             <Radio.Group value={viewMode} onChange={(e) => setViewMode(e.target.value)} optionType="button" buttonStyle="solid">
               <Radio.Button value="cards">
                 <AppstoreOutlined style={{ marginRight: 6 }} />
@@ -797,6 +835,15 @@ export const AdminBillboardsPage = observer(function AdminBillboardsPage() {
                 Список
               </Radio.Button>
             </Radio.Group>
+
+            <Button
+              danger
+              loading={isDeletingAll || billboards.isSaving}
+              disabled={!canEdit || billboards.isSaving || isDeletingAll || !billboards.items.length}
+              onClick={() => void confirmAndDeleteAll()}
+            >
+              Удалить все!
+            </Button>
           </div>
 
           {viewMode === 'cards' ? (
@@ -1002,6 +1049,26 @@ export const AdminBillboardsPage = observer(function AdminBillboardsPage() {
                                       .filter(([k]) => !extraFieldsHiddenKeys.includes(k))
                                       .map(([k, v]) => {
                                         const formatted = formatExtraField(k, v)
+                                        const isPhoto = k === 'Photo'
+                                        const url = isPhoto ? (v == null ? '' : String(v).trim()) : ''
+
+                                        if (isPhoto) {
+                                          return (
+                                            <Typography.Paragraph key={k} style={{ margin: '0 0 5px 0' }}>
+                                              <Button
+                                                type="text"
+                                                icon={<FileImageOutlined />}
+                                                disabled={!url}
+                                                aria-label={url ? 'Открыть изображение' : 'Нет изображения'}
+                                                onClick={() => {
+                                                  if (!url) return
+                                                  setPhotoModalUrl(url)
+                                                }}
+                                              />
+                                            </Typography.Paragraph>
+                                          )
+                                        }
+
                                         return (
                                           <Typography.Paragraph key={k} style={{ margin: '0 0 5px 0' }}>
                                             {formatted.label}: {formatted.value}
@@ -1082,6 +1149,28 @@ export const AdminBillboardsPage = observer(function AdminBillboardsPage() {
                                   <div>
                                     {extraEntries.map(([k, v]) => {
                                       const formatted = formatExtraField(k, v)
+                                      const isPhoto = k === 'Photo'
+                                      const url = isPhoto ? (v == null ? '' : String(v).trim()) : ''
+                                      if (isPhoto) {
+                                        return (
+                                          <Typography.Paragraph
+                                            key={k}
+                                            style={{ margin: '0 0 6px 0', fontSize: 12, color: 'rgba(0,0,0,0.85)' }}
+                                          >
+                                            <Button
+                                              type="text"
+                                              icon={<FileImageOutlined />}
+                                              disabled={!url}
+                                              aria-label={url ? 'Открыть изображение' : 'Нет изображения'}
+                                              onClick={() => {
+                                                if (!url) return
+                                                setPhotoModalUrl(url)
+                                              }}
+                                            />
+                                          </Typography.Paragraph>
+                                        )
+                                      }
+
                                       return (
                                         <Typography.Paragraph
                                           key={k}
@@ -1153,6 +1242,21 @@ export const AdminBillboardsPage = observer(function AdminBillboardsPage() {
           )}
         </Card>
       </div>
+
+      <Modal
+        open={!!photoModalUrl}
+        title="Фото"
+        footer={null}
+        onCancel={() => setPhotoModalUrl(null)}
+      >
+        {photoModalUrl ? (
+          <img
+            src={photoModalUrl}
+            alt="Фото"
+            style={{ width: '100%', borderRadius: 8, display: 'block' }}
+          />
+        ) : null}
+      </Modal>
     </>
   )
 })
