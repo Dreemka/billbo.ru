@@ -1,6 +1,6 @@
 import { observer } from 'mobx-react-lite'
 import { useEffect, useRef, useState } from 'react'
-import { AppstoreOutlined, DeleteOutlined, EllipsisOutlined, GlobalOutlined, InfoCircleOutlined, UnorderedListOutlined, UploadOutlined } from '@ant-design/icons'
+import { AppstoreOutlined, DeleteOutlined, DownloadOutlined, EditFilled, EditOutlined, EllipsisOutlined, GlobalOutlined, InfoCircleOutlined, UnorderedListOutlined, UploadOutlined } from '@ant-design/icons'
 import { Alert, Badge, Button, Card, Col, Collapse, Divider, Dropdown, Form, Input, InputNumber, Modal, Radio, Row, Select, Space, Spin, Table, Typography } from 'antd'
 import { useStore } from '../../app/store/rootStore'
 import type { Billboard } from '../../entities/types'
@@ -42,6 +42,17 @@ export const AdminBillboardsPage = observer(function AdminBillboardsPage() {
   const [mapFocusBillboardId, setMapFocusBillboardId] = useState<string | null>(null)
   const mapSectionRef = useRef<HTMLDivElement | null>(null)
 
+  const [editingBillboardId, setEditingBillboardId] = useState<string | null>(null)
+  const [editTitleDraft, setEditTitleDraft] = useState('')
+  const [editTypeDraft, setEditTypeDraft] = useState<Billboard['type']>('billboard')
+  const [editSizeDraft, setEditSizeDraft] = useState('')
+  const [editAddressDraft, setEditAddressDraft] = useState('')
+  const [editPriceDraft, setEditPriceDraft] = useState<number>(0)
+  const [editLatDraft, setEditLatDraft] = useState<number>(55.751)
+  const [editLngDraft, setEditLngDraft] = useState<number>(37.618)
+  const [editStatusAvailableDraft, setEditStatusAvailableDraft] = useState(true)
+  const [editExtraDraft, setEditExtraDraft] = useState<Record<string, string>>({})
+
   async function confirmAndDelete(id: string) {
     if (!canEdit || session.isLoading || billboards.isSaving) return
 
@@ -59,6 +70,86 @@ export const AdminBillboardsPage = observer(function AdminBillboardsPage() {
         notifySuccess('Конструкция удалена')
       },
     })
+  }
+
+  const extraFieldsHiddenKeys = ['Gid', 'Format', 'Dinamic', 'address', 'Price', 'available', 'Coordinate']
+
+  function beginEdit(item: Billboard) {
+    const statusAvailable = parseStatusToAvailable(item.extraFields?.Status)
+    const nextStatus = statusAvailable ?? item.available
+
+    setEditingBillboardId(item.id)
+    setActiveExtraBillboardId(null)
+
+    setEditTitleDraft(item.title)
+    setEditTypeDraft(item.type)
+    setEditSizeDraft(item.size)
+    setEditAddressDraft(item.address)
+    setEditPriceDraft(item.pricePerWeek)
+    setEditLatDraft(item.lat)
+    setEditLngDraft(item.lng)
+    setEditStatusAvailableDraft(nextStatus)
+
+    const nextExtraDraft: Record<string, string> = {}
+    if (item.extraFields) {
+      for (const [k, v] of Object.entries(item.extraFields)) {
+        if (extraFieldsHiddenKeys.includes(k) || k === 'Status') continue
+        nextExtraDraft[k] = v == null ? '' : String(v)
+      }
+    }
+    setEditExtraDraft(nextExtraDraft)
+  }
+
+  function cancelEdit() {
+    setEditingBillboardId(null)
+    setEditExtraDraft({})
+  }
+
+  async function saveEdit(item: Billboard) {
+    const title = editTitleDraft.trim()
+    const address = editAddressDraft.trim()
+    const size = editSizeDraft.trim()
+
+    const isValid =
+      title.length > 0 &&
+      address.length > 0 &&
+      size.length > 0 &&
+      Number.isFinite(editLatDraft) &&
+      Number.isFinite(editLngDraft) &&
+      editPriceDraft >= 0
+
+    if (!isValid) return
+
+    const nextExtraFields: Record<string, unknown> = { ...(item.extraFields ?? {}) } as Record<string, unknown>
+
+    for (const [k, v] of Object.entries(editExtraDraft)) {
+      const trimmed = v.trim()
+      if (!trimmed) delete nextExtraFields[k]
+      else nextExtraFields[k] = trimmed
+    }
+
+    nextExtraFields.Status = editStatusAvailableDraft ? 'Доступен' : 'Недоступен'
+
+    const payload: Omit<Billboard, 'id'> = {
+      title,
+      type: editTypeDraft,
+      address,
+      lat: editLatDraft,
+      lng: editLngDraft,
+      pricePerWeek: Math.round(editPriceDraft),
+      size,
+      available: editStatusAvailableDraft,
+      extraFields: Object.keys(nextExtraFields).length ? nextExtraFields : undefined,
+    }
+
+    await billboards.update(item.id, payload)
+    if (billboards.lastError) {
+      notifyError('Ошибка сохранения', billboards.lastError)
+      return
+    }
+
+    notifySuccess('Конструкция обновлена')
+    cancelEdit()
   }
 
   const [extraDraft, setExtraDraft] = useState<Record<string, string>>({
@@ -246,6 +337,76 @@ export const AdminBillboardsPage = observer(function AdminBillboardsPage() {
     }
   }
 
+  function csvEscape(value: unknown, delimiter: string): string {
+    const raw = value == null ? '' : String(value)
+    const escaped = raw.replace(/"/g, '""')
+    const mustQuote = escaped.includes('"') || escaped.includes(delimiter) || escaped.includes('\n') || escaped.includes('\r')
+    return mustQuote ? `"${escaped}"` : escaped
+  }
+
+  async function exportCsv() {
+    if (!canEdit || billboards.isSaving) return
+    try {
+      const delimiter = ';'
+      const reservedHeaders = ['Gid', 'Format', 'Dinamic', 'address', 'Price', 'Coordinate', 'Status', 'available']
+
+      const extraKeys = new Set<string>()
+      billboards.items.forEach((item) => {
+        if (!item.extraFields) return
+        Object.keys(item.extraFields).forEach((k) => {
+          if (reservedHeaders.includes(k)) return
+          extraKeys.add(k)
+        })
+      })
+
+      const headers = [...reservedHeaders, ...Array.from(extraKeys).sort()]
+
+      const lines: string[] = []
+      lines.push(headers.map((h) => csvEscape(h, delimiter)).join(delimiter))
+
+      billboards.items.forEach((item) => {
+        const statusAvailable = parseStatusToAvailable(item.extraFields?.Status)
+        const isAvailable = statusAvailable ?? item.available
+
+        const extraFields = item.extraFields ?? {}
+        const row = headers.map((h) => {
+          if (h === 'Gid') return item.title
+          if (h === 'Format') return item.size
+          if (h === 'Dinamic') return item.type === 'digital' ? 'Digital' : 'Статический'
+          if (h === 'address') return item.address
+          if (h === 'Price') return item.pricePerWeek
+          if (h === 'Coordinate') return `${item.lat}, ${item.lng}`
+          if (h === 'Status') return isAvailable ? 'Доступен' : 'Недоступен'
+          if (h === 'available') return isAvailable ? 'true' : 'false'
+
+          const v = (extraFields as Record<string, unknown>)[h]
+          if (v == null) return ''
+          if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') return v
+          return JSON.stringify(v)
+        })
+
+        lines.push(row.map((v) => csvEscape(v, delimiter)).join(delimiter))
+      })
+
+      const content = '\uFEFF' + lines.join('\r\n')
+      const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' })
+      const url = URL.createObjectURL(blob)
+
+      const a = document.createElement('a')
+      const today = new Date().toISOString().slice(0, 10)
+      a.href = url
+      a.download = `billboards-export-${today}.csv`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+
+      URL.revokeObjectURL(url)
+      notifySuccess('Экспорт CSV', billboards.items.length ? `Скачивание: ${a.download}` : 'Экспорт пустого списка.')
+    } catch (e: unknown) {
+      notifyError('Ошибка экспорта CSV', e instanceof Error ? e.message : 'Не удалось сформировать CSV')
+    }
+  }
+
   useEffect(() => {
     if (session.role !== 'admin') return
     void billboards.load()
@@ -263,7 +424,7 @@ export const AdminBillboardsPage = observer(function AdminBillboardsPage() {
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 15 }}>
         <Card type="inner" title="Импорт CSV" loading={csvParsing}>
-        <Space orientation="vertical" style={{ width: '100%' }}>
+        <Space style={{ width: '100%', display: 'flex', gap: 5 }}>
           <input
             ref={fileInputRef}
             type="file"
@@ -285,6 +446,14 @@ export const AdminBillboardsPage = observer(function AdminBillboardsPage() {
             onClick={() => fileInputRef.current?.click()}
           >
             Выберите файл
+          </Button>
+
+          <Button
+            icon={<DownloadOutlined />}
+            disabled={!canEdit || billboards.isSaving}
+            onClick={() => void exportCsv()}
+          >
+            Экспорт CSV
           </Button>
 
           {csvSurfaces.length ? (
@@ -647,6 +816,16 @@ export const AdminBillboardsPage = observer(function AdminBillboardsPage() {
                         }}
                       />
                       <Button
+                        type="text"
+                        className="app-map-focus-btn"
+                        icon={editingBillboardId === item.id ? <EditFilled /> : <EditOutlined />}
+                        aria-label={editingBillboardId === item.id ? 'Завершить редактирование' : 'Редактировать'}
+                        onClick={() => {
+                          if (editingBillboardId === item.id) cancelEdit()
+                          else beginEdit(item)
+                        }}
+                      />
+                      <Button
                         disabled={!canEdit || session.isLoading || billboards.isSaving}
                         className="app-delete-btn"
                         onClick={() => {
@@ -657,63 +836,186 @@ export const AdminBillboardsPage = observer(function AdminBillboardsPage() {
                         <DeleteOutlined />
                       </Button>
                     </div>
-                <Typography.Title level={5} style={{ marginTop: 0 }}>
-                  {item.title}
-                </Typography.Title>
-                <Typography.Paragraph>
-                  {item.type} · {item.size}
-                </Typography.Paragraph>
-                <Typography.Paragraph>{item.address}</Typography.Paragraph>
-                <Typography.Paragraph>
-                  Цена: {item.pricePerWeek.toLocaleString('ru-RU')} RUB / неделя
-                </Typography.Paragraph>
-                <Typography.Paragraph>
-                  Локация: {item.lat}, {item.lng}
-                </Typography.Paragraph>
-                {(() => {
-                  const statusAvailable = parseStatusToAvailable(item.extraFields?.Status)
-                  const isAvailable = statusAvailable ?? item.available
-                  return (
-                    <div style={{ marginBottom: 12 }}>
-                      <Badge status={isAvailable ? 'success' : 'error'} text={isAvailable ? 'Доступен' : 'Недоступен'} />
-                    </div>
-                  )
-                })()}
+                    {editingBillboardId === item.id ? (
+                      <Space orientation="vertical" size={5} style={{ width: '100%' }}>
+                        <Input
+                          placeholder="Заголовок"
+                          value={editTitleDraft}
+                          onChange={(e) => setEditTitleDraft(e.target.value)}
+                          disabled={!canEdit || billboards.isSaving || session.isLoading}
+                        />
 
-                {item.extraFields && Object.keys(item.extraFields).length > 0 ? (
-                  activeExtraBillboardId === item.id ? null : <Divider className="marketplace-status-divider" />
-                ) : null}
+                        <Space orientation="horizontal" size={5} style={{ width: '100%' }}>
+                          <Select<Billboard['type']>
+                            value={editTypeDraft}
+                            onChange={(v) => setEditTypeDraft(v)}
+                            disabled={!canEdit || billboards.isSaving || session.isLoading}
+                            style={{ flex: 1 }}
+                          >
+                            <Select.Option value="billboard">Билборд</Select.Option>
+                            <Select.Option value="cityboard">Ситиборд</Select.Option>
+                            <Select.Option value="supersite">Суперсайт</Select.Option>
+                            <Select.Option value="digital">Digital экран</Select.Option>
+                          </Select>
+                          <Input
+                            placeholder="Размер"
+                            value={editSizeDraft}
+                            onChange={(e) => setEditSizeDraft(e.target.value)}
+                            disabled={!canEdit || billboards.isSaving || session.isLoading}
+                            style={{ flex: 1 }}
+                          />
+                        </Space>
 
-                {item.extraFields && Object.keys(item.extraFields).length > 0 ? (
-                  <Collapse
-                    className="marketplace-extra-collapse"
-                    activeKey={activeExtraBillboardId === item.id ? ['extra'] : []}
-                    onChange={(keys) => {
-                      const arr = Array.isArray(keys) ? keys : [keys]
-                      setActiveExtraBillboardId(arr.length ? item.id : null)
-                    }}
-                    items={[
-                      {
-                        key: 'extra',
-                        label: 'Подробнее',
-                        children: (
-                          <div>
-                            {Object.entries(item.extraFields)
-                              .filter(([k]) => !['Gid', 'Format', 'Dinamic', 'address', 'Price', 'available', 'Coordinate'].includes(k))
-                              .map(([k, v]) => {
-                                const formatted = formatExtraField(k, v)
-                                return (
-                                  <Typography.Paragraph key={k} style={{ margin: '0 0 5px 0' }}>
-                                    {formatted.label}: {formatted.value}
-                                  </Typography.Paragraph>
+                        <Input
+                          placeholder="Адрес"
+                          value={editAddressDraft}
+                          onChange={(e) => setEditAddressDraft(e.target.value)}
+                          disabled={!canEdit || billboards.isSaving || session.isLoading}
+                        />
+
+                        <InputNumber
+                          placeholder="Цена за неделю"
+                          value={editPriceDraft}
+                          onChange={(v) => setEditPriceDraft(v ?? 0)}
+                          disabled={!canEdit || billboards.isSaving || session.isLoading}
+                          style={{ width: '100%' }}
+                          min={0}
+                        />
+
+                        <Space orientation="horizontal" size={5} style={{ width: '100%' }}>
+                          <InputNumber
+                            placeholder="Широта"
+                            value={editLatDraft}
+                            onChange={(v) => setEditLatDraft(v ?? 0)}
+                            disabled={!canEdit || billboards.isSaving || session.isLoading}
+                            style={{ flex: 1 }}
+                          />
+                          <InputNumber
+                            placeholder="Долгота"
+                            value={editLngDraft}
+                            onChange={(v) => setEditLngDraft(v ?? 0)}
+                            disabled={!canEdit || billboards.isSaving || session.isLoading}
+                            style={{ flex: 1 }}
+                          />
+                        </Space>
+
+                        <Select<boolean>
+                          value={editStatusAvailableDraft}
+                          onChange={(v) => setEditStatusAvailableDraft(v)}
+                          disabled={!canEdit || billboards.isSaving || session.isLoading}
+                          style={{ width: '100%' }}
+                        >
+                          <Select.Option value={true}>Доступен</Select.Option>
+                          <Select.Option value={false}>Недоступен</Select.Option>
+                        </Select>
+
+                        {item.extraFields && Object.keys(item.extraFields).length > 0 ? (
+                          <>
+                            <Divider className="marketplace-status-divider" />
+                            <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
+                              Подробнее
+                            </Typography.Paragraph>
+                            <Space orientation="vertical" size={5} style={{ width: '100%' }}>
+                              {(() => {
+                                const editableExtraEntries = Object.entries(item.extraFields ?? {}).filter(
+                                  ([k]) => !extraFieldsHiddenKeys.includes(k) && k !== 'Status',
                                 )
-                              })}
-                          </div>
-                        ),
-                      },
-                    ]}
-                  />
-                ) : null}
+
+                                return editableExtraEntries.map(([k]) => (
+                                  <Input
+                                    key={k}
+                                    placeholder={formatExtraField(k, '').label}
+                                    value={editExtraDraft[k] ?? ''}
+                                    onChange={(e) => setEditExtraDraft((prev) => ({ ...prev, [k]: e.target.value }))}
+                                    disabled={!canEdit || billboards.isSaving || session.isLoading}
+                                  />
+                                ))
+                              })()}
+                            </Space>
+                          </>
+                        ) : null}
+
+                        {billboards.lastError && editingBillboardId === item.id ? (
+                          <Typography.Paragraph type="danger" style={{ margin: 0 }}>
+                            {billboards.lastError}
+                          </Typography.Paragraph>
+                        ) : null}
+
+                        <Space orientation="horizontal" size={5}>
+                          <Button
+                            type="primary"
+                            disabled={!canEdit || session.isLoading || billboards.isSaving}
+                            loading={billboards.isSaving}
+                            onClick={() => void saveEdit(item)}
+                          >
+                            Сохранить
+                          </Button>
+                          <Button onClick={cancelEdit} disabled={billboards.isSaving}>
+                            Отменить
+                          </Button>
+                        </Space>
+                      </Space>
+                    ) : (
+                      <>
+                        <Typography.Title level={5} style={{ marginTop: 0 }}>
+                          {item.title}
+                        </Typography.Title>
+                        <Typography.Paragraph>
+                          {item.type} · {item.size}
+                        </Typography.Paragraph>
+                        <Typography.Paragraph>{item.address}</Typography.Paragraph>
+                        <Typography.Paragraph>
+                          Цена: {item.pricePerWeek.toLocaleString('ru-RU')} RUB / неделя
+                        </Typography.Paragraph>
+                        <Typography.Paragraph>
+                          Локация: {item.lat}, {item.lng}
+                        </Typography.Paragraph>
+                        {(() => {
+                          const statusAvailable = parseStatusToAvailable(item.extraFields?.Status)
+                          const isAvailable = statusAvailable ?? item.available
+                          return (
+                            <div style={{ marginBottom: 12 }}>
+                              <Badge status={isAvailable ? 'success' : 'error'} text={isAvailable ? 'Доступен' : 'Недоступен'} />
+                            </div>
+                          )
+                        })()}
+
+                        {item.extraFields && Object.keys(item.extraFields).length > 0 ? (
+                          activeExtraBillboardId === item.id ? null : <Divider className="marketplace-status-divider" />
+                        ) : null}
+
+                        {item.extraFields && Object.keys(item.extraFields).length > 0 ? (
+                          <Collapse
+                            className="marketplace-extra-collapse"
+                            activeKey={activeExtraBillboardId === item.id ? ['extra'] : []}
+                            onChange={(keys) => {
+                              const arr = Array.isArray(keys) ? keys : [keys]
+                              setActiveExtraBillboardId(arr.length ? item.id : null)
+                            }}
+                            items={[
+                              {
+                                key: 'extra',
+                                label: 'Подробнее',
+                                children: (
+                                  <div>
+                                    {Object.entries(item.extraFields)
+                                      .filter(([k]) => !extraFieldsHiddenKeys.includes(k))
+                                      .map(([k, v]) => {
+                                        const formatted = formatExtraField(k, v)
+                                        return (
+                                          <Typography.Paragraph key={k} style={{ margin: '0 0 5px 0' }}>
+                                            {formatted.label}: {formatted.value}
+                                          </Typography.Paragraph>
+                                        )
+                                      })}
+                                  </div>
+                                ),
+                              },
+                            ]}
+                          />
+                        ) : null}
+                      </>
+                    )}
               </Card>
                 </Col>
               ))}
