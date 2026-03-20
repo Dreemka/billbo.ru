@@ -23,6 +23,12 @@ export interface UserProfile {
   fullName: string
   email: string
   phone: string
+  avatarUrl?: string
+}
+
+export interface ChangePasswordPayload {
+  newPassword: string
+  repeatPassword: string
 }
 
 /** Ответ POST /auth/login и /auth/register */

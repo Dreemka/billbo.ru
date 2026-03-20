@@ -162,7 +162,8 @@ export class AdSurfacesService {
       pricePerWeek: row.pricePerWeek,
       size: row.size,
       available: row.isActive,
-      extraFields: (row.extraFields ?? {}) as Record<string, unknown>,
+      // Если JSON не заполнен — возвращаем `null`, чтобы UI не показывал пустой блок.
+      extraFields: (row.extraFields ? (row.extraFields as Record<string, unknown>) : null) ?? null,
     }
   }
 }

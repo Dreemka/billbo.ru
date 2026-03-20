@@ -4,6 +4,7 @@ import type {
   Billboard,
   BookingPayload,
   CompanyProfile,
+  ChangePasswordPayload,
   LoginPayload,
   RegisterPayload,
   Role,
@@ -55,6 +56,9 @@ export const billboardsApi = {
 export const userApi = {
   updateProfile(payload: UserProfile) {
     return http.put<UserProfile>('/user/profile', payload)
+  },
+  changePassword(payload: ChangePasswordPayload) {
+    return http.put<{ success: boolean }>('/user/password', payload)
   },
   getProfile() {
     return http.get<UserProfile>('/user/profile')

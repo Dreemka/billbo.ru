@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Put, UnauthorizedException } from '@nestjs/common'
 import { CurrentUser, type JwtUserPayload } from '../../common/auth/current-user.decorator'
 import { UpdateUserDto } from './dto/update-user.dto'
+import { ChangePasswordDto } from './dto/change-password.dto'
 import { UsersService } from './users.service'
 
 @Controller('user')
@@ -17,5 +18,14 @@ export class UserProfileController {
   update(@CurrentUser() user: JwtUserPayload | undefined, @Body() dto: UpdateUserDto) {
     if (!user?.sub) throw new UnauthorizedException()
     return this.usersService.update(user.sub, dto)
+  }
+
+  @Put('password')
+  changePassword(
+    @CurrentUser() user: JwtUserPayload | undefined,
+    @Body() dto: ChangePasswordDto,
+  ) {
+    if (!user?.sub) throw new UnauthorizedException()
+    return this.usersService.changePassword(user.sub, dto.newPassword, dto.repeatPassword)
   }
 }

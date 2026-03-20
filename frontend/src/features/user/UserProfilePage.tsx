@@ -2,12 +2,14 @@ import { observer } from 'mobx-react-lite'
 import { useEffect, useState } from 'react'
 import { Button, Card, Form, Input, Typography } from 'antd'
 import { useStore } from '../../app/store/rootStore'
+import { notifyError, notifySuccess } from '../../shared/lib/notify'
 
 export const UserProfilePage = observer(function UserProfilePage() {
   const { user, session } = useStore()
   const [fullName, setFullName] = useState(user.profile.fullName)
   const [email, setEmail] = useState(user.profile.email)
   const [phone, setPhone] = useState(user.profile.phone)
+  const [avatarUrl, setAvatarUrl] = useState(user.profile.avatarUrl || '')
   const canEdit = session.role === 'user'
   const isValid = fullName.trim().length > 2 && email.includes('@') && phone.trim().length >= 10
 
@@ -21,12 +23,13 @@ export const UserProfilePage = observer(function UserProfilePage() {
     setFullName(user.profile.fullName)
     setEmail(user.profile.email)
     setPhone(user.profile.phone)
-  }, [user.profile.fullName, user.profile.email, user.profile.phone])
+    setAvatarUrl(user.profile.avatarUrl || '')
+  }, [user.profile.fullName, user.profile.email, user.profile.phone, user.profile.avatarUrl])
 
   return (
     <Card>
       <Typography.Title level={4}>Профиль пользователя</Typography.Title>
-      <Form layout="vertical">
+      <Form layout="vertical" className="app-form">
         <Form.Item label="ФИО">
           <Input value={fullName} onChange={(event) => setFullName(event.target.value)} disabled={!canEdit} />
         </Form.Item>
@@ -35,6 +38,9 @@ export const UserProfilePage = observer(function UserProfilePage() {
         </Form.Item>
         <Form.Item label="Телефон">
           <Input value={phone} onChange={(event) => setPhone(event.target.value)} disabled={!canEdit} />
+        </Form.Item>
+        <Form.Item label="Аватар (URL)">
+          <Input value={avatarUrl} onChange={(event) => setAvatarUrl(event.target.value)} disabled={!canEdit} />
         </Form.Item>
       </Form>
 
@@ -48,7 +54,14 @@ export const UserProfilePage = observer(function UserProfilePage() {
         type="primary"
         disabled={!canEdit || session.isLoading || !isValid || user.isSaving}
         loading={user.isSaving}
-        onClick={() => void user.updateProfile({ fullName, email, phone })}
+        onClick={async () => {
+          await user.updateProfile({ fullName, email, phone, avatarUrl: avatarUrl.trim() || undefined })
+          if (user.lastError) {
+            notifyError('Ошибка сохранения', user.lastError)
+            return
+          }
+          notifySuccess('Профиль сохранен')
+        }}
       >
         Сохранить
       </Button>

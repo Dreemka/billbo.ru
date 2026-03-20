@@ -1,5 +1,5 @@
 import { createContext, useContext } from 'react'
-import { makeAutoObservable } from 'mobx'
+import { makeAutoObservable, runInAction } from 'mobx'
 import type {
   AuthDevResponse,
   AuthTokensResponse,
@@ -12,6 +12,7 @@ import type {
 import { clearAuthStorage, REFRESH_KEY, ROLE_KEY, TOKEN_KEY } from '../../shared/api/http'
 import { authApi, billboardsApi, bookingApi, companyApi, userApi } from '../../shared/api/services'
 import { mapBackendRoleToAppRole } from '../../shared/lib/mapBackendRole'
+import { getErrorMessage } from '../../shared/lib/getErrorMessage'
 
 class SessionStore {
   role: Role = 'guest'
@@ -138,13 +139,19 @@ class CompanyStore {
     this.lastError = null
     try {
       const response = await companyApi.updateProfile(next)
-      this.profile = response.data
+      runInAction(() => {
+        this.profile = response.data
+      })
     } catch (error) {
       console.error('Company updateProfile failed', error)
-      this.lastError = 'Не удалось сохранить профиль компании. Проверьте backend и БД.'
-      this.profile = next
+      runInAction(() => {
+        this.lastError = getErrorMessage(error, 'Не удалось сохранить профиль компании.')
+        this.profile = next
+      })
     } finally {
-      this.isSaving = false
+      runInAction(() => {
+        this.isSaving = false
+      })
     }
   }
 
@@ -156,13 +163,19 @@ class CompanyStore {
     this.lastError = null
     try {
       const response = await companyApi.getProfile()
-      this.profile = response.data
-      this.isProfileLoaded = true
+      runInAction(() => {
+        this.profile = response.data
+        this.isProfileLoaded = true
+      })
     } catch (error) {
       console.error('Company loadProfile failed', error)
-      this.lastError = 'Не удалось загрузить профиль компании.'
+      runInAction(() => {
+        this.lastError = getErrorMessage(error, 'Не удалось загрузить профиль компании.')
+      })
     } finally {
-      this.isLoading = false
+      runInAction(() => {
+        this.isLoading = false
+      })
     }
   }
 }
@@ -186,14 +199,20 @@ class BillboardsStore {
     this.lastError = null
     try {
       const response = await billboardsApi.list()
-      this.items = response.data
-      this.isLoaded = true
+      runInAction(() => {
+        this.items = response.data
+        this.isLoaded = true
+      })
     } catch (error) {
       console.error('Billboards load failed', error)
-      this.lastError = 'Не удалось загрузить список конструкций.'
-      this.items = []
+      runInAction(() => {
+        this.lastError = 'Не удалось загрузить список конструкций.'
+        this.items = []
+      })
     } finally {
-      this.isLoading = false
+      runInAction(() => {
+        this.isLoading = false
+      })
     }
   }
 
@@ -207,13 +226,19 @@ class BillboardsStore {
     this.lastError = null
     try {
       const response = await billboardsApi.create(payload)
-      this.items.unshift(response.data)
+      runInAction(() => {
+        this.items.unshift(response.data)
+      })
     } catch (error) {
       console.error('Billboards add failed', error)
-      this.lastError = 'Не удалось добавить конструкцию.'
+      runInAction(() => {
+        this.lastError = getErrorMessage(error, 'Не удалось добавить конструкцию.')
+      })
       // keep existing items
     } finally {
-      this.isSaving = false
+      runInAction(() => {
+        this.isSaving = false
+      })
     }
   }
 
@@ -225,9 +250,13 @@ class BillboardsStore {
       await this.reload()
     } catch (error) {
       console.error('Billboards bulkImport failed', error)
-      this.lastError = 'Не удалось импортировать CSV.'
+      runInAction(() => {
+        this.lastError = getErrorMessage(error, 'Не удалось импортировать CSV.')
+      })
     } finally {
-      this.isSaving = false
+      runInAction(() => {
+        this.isSaving = false
+      })
     }
   }
 
@@ -236,44 +265,62 @@ class BillboardsStore {
     this.lastError = null
     try {
       const response = await billboardsApi.update(id, payload)
-      this.items = this.items.map((item) => (item.id === id ? response.data : item))
+      runInAction(() => {
+        this.items = this.items.map((item) => (item.id === id ? response.data : item))
+      })
     } catch (error) {
       console.error('Billboards update failed', error)
-      this.lastError = 'Не удалось обновить конструкцию.'
+      runInAction(() => {
+        this.lastError = getErrorMessage(error, 'Не удалось обновить конструкцию.')
+      })
     } finally {
-      this.isSaving = false
+      runInAction(() => {
+        this.isSaving = false
+      })
     }
   }
 
   async remove(id: string) {
     this.isSaving = true
     this.lastError = null
+    let ok = false
     try {
       await billboardsApi.remove(id)
+      ok = true
     } catch (error) {
       console.error('Billboards remove failed', error)
-      this.lastError = 'Не удалось удалить конструкцию.'
+      runInAction(() => {
+        this.lastError = getErrorMessage(error, 'Не удалось удалить конструкцию.')
+      })
     } finally {
-      this.items = this.items.filter((item) => item.id !== id)
-      this.isSaving = false
+      runInAction(() => {
+        if (ok) this.items = this.items.filter((item) => item.id !== id)
+        this.isSaving = false
+      })
     }
   }
 
   async reserve(id: string) {
     this.lastError = null
+    let ok = false
     try {
       await bookingApi.create({ billboardId: id })
+      ok = true
     } catch (error) {
       console.error('Billboards reserve failed', error)
-      this.lastError = 'Не удалось выполнить бронирование.'
+      runInAction(() => {
+        this.lastError = getErrorMessage(error, 'Не удалось выполнить бронирование.')
+      })
     } finally {
-      this.items = this.items.map((item) => (item.id === id ? { ...item, available: false } : item))
+      runInAction(() => {
+        if (ok) this.items = this.items.map((item) => (item.id === id ? { ...item, available: false } : item))
+      })
     }
   }
 }
 
 class UserStore {
-  profile: UserProfile = { fullName: '', email: '', phone: '' }
+  profile: UserProfile = { fullName: '', email: '', phone: '', avatarUrl: undefined }
   walletBalance = 0
   isSaving = false
   isLoading = false
@@ -290,12 +337,35 @@ class UserStore {
     this.lastError = null
     try {
       const response = await userApi.updateProfile(next)
-      this.profile = response.data
+      runInAction(() => {
+        this.profile = response.data
+      })
     } catch (error) {
       console.error('User updateProfile failed', error)
-      this.lastError = 'Не удалось сохранить профиль пользователя.'
+      runInAction(() => {
+        this.lastError = getErrorMessage(error, 'Не удалось сохранить профиль пользователя.')
+      })
     } finally {
-      this.isSaving = false
+      runInAction(() => {
+        this.isSaving = false
+      })
+    }
+  }
+
+  async changePassword(newPassword: string, repeatPassword: string) {
+    this.isSaving = true
+    this.lastError = null
+    try {
+      await userApi.changePassword({ newPassword, repeatPassword })
+    } catch (error) {
+      console.error('User changePassword failed', error)
+      runInAction(() => {
+        this.lastError = getErrorMessage(error, 'Не удалось изменить пароль.')
+      })
+    } finally {
+      runInAction(() => {
+        this.isSaving = false
+      })
     }
   }
 
@@ -304,12 +374,18 @@ class UserStore {
     this.lastError = null
     try {
       const response = await userApi.topUp({ amount })
-      this.walletBalance = response.data.balance
+      runInAction(() => {
+        this.walletBalance = response.data.balance
+      })
     } catch (error) {
       console.error('User topUp failed', error)
-      this.lastError = 'Не удалось пополнить кошелек.'
+      runInAction(() => {
+        this.lastError = getErrorMessage(error, 'Не удалось пополнить кошелек.')
+      })
     } finally {
-      this.isSaving = false
+      runInAction(() => {
+        this.isSaving = false
+      })
     }
   }
 
@@ -321,13 +397,19 @@ class UserStore {
     this.lastError = null
     try {
       const response = await userApi.getProfile()
-      this.profile = response.data
-      this.isProfileLoaded = true
+      runInAction(() => {
+        this.profile = response.data
+        this.isProfileLoaded = true
+      })
     } catch (error) {
       console.error('User loadProfile failed', error)
-      this.lastError = 'Не удалось загрузить профиль пользователя.'
+      runInAction(() => {
+        this.lastError = getErrorMessage(error, 'Не удалось загрузить профиль пользователя.')
+      })
     } finally {
-      this.isLoading = false
+      runInAction(() => {
+        this.isLoading = false
+      })
     }
   }
 
@@ -339,13 +421,19 @@ class UserStore {
     this.lastError = null
     try {
       const response = await userApi.getWallet()
-      this.walletBalance = response.data.balance
-      this.isWalletLoaded = true
+      runInAction(() => {
+        this.walletBalance = response.data.balance
+        this.isWalletLoaded = true
+      })
     } catch (error) {
       console.error('User loadWallet failed', error)
-      this.lastError = 'Не удалось загрузить кошелек.'
+      runInAction(() => {
+        this.lastError = getErrorMessage(error, 'Не удалось загрузить кошелек.')
+      })
     } finally {
-      this.isLoading = false
+      runInAction(() => {
+        this.isLoading = false
+      })
     }
   }
 
@@ -374,6 +462,11 @@ class RootStore {
       this.user.lastError = null
       this.billboards.lastError = null
     })
+
+    // Подгружаем профиль пользователя сразу при старте приложения (если пользователь уже залогинен)
+    if (this.session.role !== 'guest' && this.session.token) {
+      void this.user.loadProfile()
+    }
   }
 }
 

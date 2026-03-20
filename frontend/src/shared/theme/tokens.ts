@@ -1,11 +1,12 @@
 import type { ThemeConfig } from 'antd'
 
 export const palette = {
-  lavender: '#F5B0F0',
-  indigo: '#7365A6',
-  slate: '#6D6F8C',
-  sand: '#F2CCB6',
-  clay: '#BF8D7A',
+  lavender: '#0f1131',
+  indigo: '#9826DB',
+  slate: '#0f1131',
+  sand: '#ffffff',
+  clay: '#0f1131',
+  text: '#444444',
 } as const
 
 export const appThemeToken: ThemeConfig = {
@@ -16,7 +17,7 @@ export const appThemeToken: ThemeConfig = {
     colorSuccess: palette.lavender,
     colorWarning: palette.clay,
     colorError: palette.clay,
-    colorTextBase: palette.indigo,
+    colorTextBase: palette.text,
     colorBgBase: palette.sand,
     colorBorder: palette.clay,
     borderRadius: 10,

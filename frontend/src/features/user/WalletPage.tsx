@@ -2,6 +2,7 @@ import { observer } from 'mobx-react-lite'
 import { useEffect, useState } from 'react'
 import { Card, InputNumber, Button, Space, Typography } from 'antd'
 import { useStore } from '../../app/store/rootStore'
+import { notifyError, notifySuccess } from '../../shared/lib/notify'
 
 export const WalletPage = observer(function WalletPage() {
   const { user, session } = useStore()
@@ -36,7 +37,14 @@ export const WalletPage = observer(function WalletPage() {
           type="primary"
           disabled={!canEdit || session.isLoading || topUpValue <= 0 || user.isSaving}
           loading={user.isSaving}
-          onClick={() => void user.topUp(topUpValue)}
+          onClick={async () => {
+            await user.topUp(topUpValue)
+            if (user.lastError) {
+              notifyError('Ошибка пополнения', user.lastError)
+              return
+            }
+            notifySuccess('Кошелек пополнен', `Новый баланс: ${user.walletBalance.toLocaleString('ru-RU')} RUB`)
+          }}
         >
           Пополнить
         </Button>

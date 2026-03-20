@@ -1,6 +1,7 @@
 import { observer } from 'mobx-react-lite'
 import { useEffect, useRef, useState } from 'react'
-import { Alert, Button, Card, Col, Collapse, Form, Input, InputNumber, Row, Select, Space, Spin, Typography } from 'antd'
+import { AppstoreOutlined, UnorderedListOutlined } from '@ant-design/icons'
+import { Alert, Button, Card, Col, Collapse, Form, Input, InputNumber, Radio, Row, Select, Space, Spin, Table, Typography } from 'antd'
 import { useStore } from '../../app/store/rootStore'
 import type { Billboard } from '../../entities/types'
 import { tryParseLatLngFromText } from '../../shared/lib/parseCoords'
@@ -8,6 +9,8 @@ import { parseCsv } from '../../shared/lib/parseCsv'
 import { geocodeAddressToLatLng } from '../../shared/lib/yandexGeocode'
 import { getYandexMapsApiKey } from '../../shared/lib/yandexMapsLoader'
 import { formatExtraField } from '../../shared/lib/formatExtraField'
+import { notifyError, notifySuccess } from '../../shared/lib/notify'
+import { parseStatusToAvailable } from '../../shared/lib/parseStatusToAvailable'
 
 const emptyForm: Omit<Billboard, 'id'> = {
   title: '',
@@ -33,6 +36,24 @@ export const AdminBillboardsPage = observer(function AdminBillboardsPage() {
   const [csvParsing, setCsvParsing] = useState(false)
   const [csvError, setCsvError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const [viewMode, setViewMode] = useState<'cards' | 'list'>('cards')
+
+  const [extraDraft, setExtraDraft] = useState<Record<string, string>>({
+    GRP: '',
+    OTS: '',
+    Tax: '',
+    Side: '',
+    city: '',
+    ESPAR: '',
+    Light: '',
+    Photo: '',
+    Status: '',
+    Material: '',
+    specPrice: '',
+    printPrice: '',
+    installPrice: '',
+    AdditionalInstallPrice: '',
+  })
 
   function applyParsedCoords(text: string): boolean {
     const parsed = tryParseLatLngFromText(text)
@@ -209,14 +230,15 @@ export const AdminBillboardsPage = observer(function AdminBillboardsPage() {
   }, [session.role])
 
   return (
-    <Card>
+    <>
       <Typography.Title level={4}>Рекламные элементы компании</Typography.Title>
       <Typography.Paragraph>
         Добавляйте, обновляйте и удаляйте карточки конструкций, доступных для аренды.
       </Typography.Paragraph>
 
-      <Card style={{ marginTop: 16 }} type="inner" title="Импорт CSV" loading={csvParsing}>
-        <Space direction="vertical" style={{ width: '100%' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 15 }}>
+        <Card type="inner" title="Импорт CSV" loading={csvParsing}>
+        <Space orientation="vertical" style={{ width: '100%' }}>
           <input
             ref={fileInputRef}
             type="file"
@@ -243,12 +265,21 @@ export const AdminBillboardsPage = observer(function AdminBillboardsPage() {
           {csvError ? <Alert type="error" showIcon message={csvError} style={{ padding: 0 }} /> : null}
 
           {csvSurfaces.length ? (
-            <Space direction="vertical" size={5} style={{ width: '100%' }}>
+            <Space orientation="vertical" size={5} style={{ width: '100%' }}>
               <Button
                 type="primary"
                 disabled={!canEdit || billboards.isSaving}
                 loading={billboards.isSaving}
-                onClick={() => void billboards.bulkImport(csvSurfaces)}
+                onClick={async () => {
+                  await billboards.bulkImport(csvSurfaces)
+                  if (billboards.lastError) {
+                    notifyError('Ошибка импорта CSV', billboards.lastError)
+                    return
+                  }
+                  notifySuccess('Импорт CSV завершен', `Добавлено: ${csvSurfaces.length}`)
+                  setCsvSurfaces([])
+                  setCsvError(null)
+                }}
               >
                 Импортировать
               </Button>
@@ -273,7 +304,8 @@ export const AdminBillboardsPage = observer(function AdminBillboardsPage() {
         </Space>
       </Card>
 
-      <Form layout="vertical">
+        <Card>
+          <Form layout="vertical" className="app-form">
         <Form.Item label="Заголовок">
           <Input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} disabled={!canEdit} />
         </Form.Item>
@@ -399,6 +431,80 @@ export const AdminBillboardsPage = observer(function AdminBillboardsPage() {
           </Form.Item>
         </Space>
 
+        <Collapse
+          style={{ marginTop: 16 }}
+          items={[
+            {
+              key: 'extra-fields',
+              label: 'Дополнительные поля (необязательно)',
+              children: (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <div>
+                    <Typography.Text>GRP</Typography.Text>
+                    <Input value={extraDraft.GRP} onChange={(e) => setExtraDraft((d) => ({ ...d, GRP: e.target.value }))} disabled={!canEdit} />
+                  </div>
+                  <div>
+                    <Typography.Text>OTS</Typography.Text>
+                    <Input value={extraDraft.OTS} onChange={(e) => setExtraDraft((d) => ({ ...d, OTS: e.target.value }))} disabled={!canEdit} />
+                  </div>
+                  <div>
+                    <Typography.Text>Налог</Typography.Text>
+                    <Input value={extraDraft.Tax} onChange={(e) => setExtraDraft((d) => ({ ...d, Tax: e.target.value }))} disabled={!canEdit} />
+                  </div>
+                  <div>
+                    <Typography.Text>Сторона</Typography.Text>
+                    <Input value={extraDraft.Side} onChange={(e) => setExtraDraft((d) => ({ ...d, Side: e.target.value }))} disabled={!canEdit} />
+                  </div>
+                  <div>
+                    <Typography.Text>Город</Typography.Text>
+                    <Input value={extraDraft.city} onChange={(e) => setExtraDraft((d) => ({ ...d, city: e.target.value }))} disabled={!canEdit} />
+                  </div>
+                  <div>
+                    <Typography.Text>ESPAR</Typography.Text>
+                    <Input value={extraDraft.ESPAR} onChange={(e) => setExtraDraft((d) => ({ ...d, ESPAR: e.target.value }))} disabled={!canEdit} />
+                  </div>
+                  <div>
+                    <Typography.Text>Подсветка</Typography.Text>
+                    <Input value={extraDraft.Light} onChange={(e) => setExtraDraft((d) => ({ ...d, Light: e.target.value }))} disabled={!canEdit} />
+                  </div>
+                  <div>
+                    <Typography.Text>Фото</Typography.Text>
+                    <Input value={extraDraft.Photo} onChange={(e) => setExtraDraft((d) => ({ ...d, Photo: e.target.value }))} disabled={!canEdit} />
+                  </div>
+                  <div>
+                    <Typography.Text>Статус</Typography.Text>
+                    <Input value={extraDraft.Status} onChange={(e) => setExtraDraft((d) => ({ ...d, Status: e.target.value }))} disabled={!canEdit} />
+                  </div>
+                  <div>
+                    <Typography.Text>Материал</Typography.Text>
+                    <Input value={extraDraft.Material} onChange={(e) => setExtraDraft((d) => ({ ...d, Material: e.target.value }))} disabled={!canEdit} />
+                  </div>
+                  <div>
+                    <Typography.Text>Спец. цена</Typography.Text>
+                    <Input value={extraDraft.specPrice} onChange={(e) => setExtraDraft((d) => ({ ...d, specPrice: e.target.value }))} disabled={!canEdit} />
+                  </div>
+                  <div>
+                    <Typography.Text>Цена печати</Typography.Text>
+                    <Input value={extraDraft.printPrice} onChange={(e) => setExtraDraft((d) => ({ ...d, printPrice: e.target.value }))} disabled={!canEdit} />
+                  </div>
+                  <div>
+                    <Typography.Text>Монтаж</Typography.Text>
+                    <Input value={extraDraft.installPrice} onChange={(e) => setExtraDraft((d) => ({ ...d, installPrice: e.target.value }))} disabled={!canEdit} />
+                  </div>
+                  <div>
+                    <Typography.Text>Доп. монтаж</Typography.Text>
+                    <Input
+                      value={extraDraft.AdditionalInstallPrice}
+                      onChange={(e) => setExtraDraft((d) => ({ ...d, AdditionalInstallPrice: e.target.value }))}
+                      disabled={!canEdit}
+                    />
+                  </div>
+                </div>
+              ),
+            },
+          ]}
+        />
+
         <Form.Item>
           <Button
             type="primary"
@@ -412,8 +518,47 @@ export const AdminBillboardsPage = observer(function AdminBillboardsPage() {
             }
             loading={billboards.isSaving}
             onClick={async () => {
-              await billboards.add(form)
+              const extraFields: Record<string, string> = {}
+              Object.entries(extraDraft).forEach(([k, v]) => {
+                if (v.trim()) extraFields[k] = v.trim()
+              })
+
+              // Доступность определяется полем `Status` (если оно заполнено).
+              const statusAvailable = parseStatusToAvailable(extraFields.Status)
+              if (statusAvailable !== null) {
+                form.available = statusAvailable
+              }
+              // Если статус не заполнен — подставляем из `available`, чтобы в карточке был единый источник.
+              if (!extraFields.Status) {
+                extraFields.Status = form.available ? 'Доступен' : 'Недоступен'
+              }
+
+              await billboards.add({
+                ...form,
+                extraFields: Object.keys(extraFields).length ? extraFields : undefined,
+              })
+              if (billboards.lastError) {
+                notifyError('Ошибка сохранения', billboards.lastError)
+                return
+              }
+              notifySuccess('Конструкция добавлена')
               setForm(emptyForm)
+              setExtraDraft({
+                GRP: '',
+                OTS: '',
+                Tax: '',
+                Side: '',
+                city: '',
+                ESPAR: '',
+                Light: '',
+                Photo: '',
+                Status: '',
+                Material: '',
+                specPrice: '',
+                printPrice: '',
+                installPrice: '',
+                AdditionalInstallPrice: '',
+              })
               setCoordsPasteDraft('')
               lastGeocodedAddressRef.current = ''
               setGeoHint(null)
@@ -429,67 +574,166 @@ export const AdminBillboardsPage = observer(function AdminBillboardsPage() {
           {billboards.lastError}
         </Typography.Paragraph>
       ) : null}
+        </Card>
 
-      <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
-        {billboards.items.map((item) => (
-          <Col key={item.id} xs={24} sm={12} md={12} lg={8} xl={8}>
-            <Card>
-              <Typography.Title level={5} style={{ marginTop: 0 }}>
-                {item.title}
-              </Typography.Title>
-              <Typography.Paragraph>
-                {item.type} · {item.size}
-              </Typography.Paragraph>
-              <Typography.Paragraph>{item.address}</Typography.Paragraph>
-              <Typography.Paragraph>
-                Цена: {item.pricePerWeek.toLocaleString('ru-RU')} RUB / неделя
-              </Typography.Paragraph>
-              <Typography.Paragraph>
-                Локация: {item.lat}, {item.lng}
-              </Typography.Paragraph>
-              <Typography.Text>
-                Статус: {item.available ? 'Доступен' : 'Забронирован'}
-              </Typography.Text>
+        <Card>
+          <div style={{ marginTop: 0 }}>
+            <Radio.Group value={viewMode} onChange={(e) => setViewMode(e.target.value)} optionType="button" buttonStyle="solid">
+              <Radio.Button value="cards">
+                <AppstoreOutlined style={{ marginRight: 6 }} />
+                Карточки
+              </Radio.Button>
+              <Radio.Button value="list">
+                <UnorderedListOutlined style={{ marginRight: 6 }} />
+                Список
+              </Radio.Button>
+            </Radio.Group>
+          </div>
 
-              {item.extraFields ? (
-                <Collapse
-                  style={{ marginTop: 5, marginBottom: 5 }}
-                  items={[
-                    {
-                      key: 'extra',
-                      label: 'Дополнительная информация',
-                      children: (
-                        <div>
-                          {Object.entries(item.extraFields)
-                            .filter(([k]) => !['Gid', 'Format', 'Dinamic', 'address', 'Price', 'available', 'Coordinate'].includes(k))
-                            .map(([k, v]) => {
-                              const formatted = formatExtraField(k, v)
-                              return (
-                                <Typography.Paragraph key={k} style={{ margin: '0 0 5px 0', fontSize: 12 }}>
-                                  {formatted.label}: {formatted.value}
-                                </Typography.Paragraph>
-                              )
-                            })}
-                        </div>
-                      ),
-                    },
-                  ]}
-                />
-              ) : null}
+          {viewMode === 'cards' ? (
+            <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
+              {billboards.items.map((item) => (
+                <Col key={item.id} xs={24} sm={12} md={12} lg={8} xl={8}>
+                  <Card>
+                <Typography.Title level={5} style={{ marginTop: 0 }}>
+                  {item.title}
+                </Typography.Title>
+                <Typography.Paragraph>
+                  {item.type} · {item.size}
+                </Typography.Paragraph>
+                <Typography.Paragraph>{item.address}</Typography.Paragraph>
+                <Typography.Paragraph>
+                  Цена: {item.pricePerWeek.toLocaleString('ru-RU')} RUB / неделя
+                </Typography.Paragraph>
+                <Typography.Paragraph>
+                  Локация: {item.lat}, {item.lng}
+                </Typography.Paragraph>
+                <Typography.Text>
+                Статус:{' '}
+                {(() => {
+                  const statusAvailable = parseStatusToAvailable(item.extraFields?.Status)
+                  const isAvailable = statusAvailable ?? item.available
+                  return isAvailable ? 'Доступен' : 'Забронирован'
+                })()}
+                </Typography.Text>
 
-              <Space style={{ marginTop: 5 }}>
-                <Button
-                  danger
-                  disabled={!canEdit || session.isLoading || billboards.isSaving}
-                  onClick={() => void billboards.remove(item.id)}
-                >
-                  Удалить
-                </Button>
-              </Space>
-            </Card>
-          </Col>
-        ))}
-      </Row>
-    </Card>
+                {item.extraFields && Object.keys(item.extraFields).length > 0 ? (
+                  <Collapse
+                    style={{ marginTop: 5, marginBottom: 5 }}
+                    items={[
+                      {
+                        key: 'extra',
+                        label: 'Дополнительная информация',
+                        children: (
+                          <div>
+                            {Object.entries(item.extraFields)
+                              .filter(([k]) => !['Gid', 'Format', 'Dinamic', 'address', 'Price', 'available', 'Coordinate'].includes(k))
+                              .map(([k, v]) => {
+                                const formatted = formatExtraField(k, v)
+                                return (
+                                  <Typography.Paragraph key={k} style={{ margin: '0 0 5px 0', fontSize: 12 }}>
+                                    {formatted.label}: {formatted.value}
+                                  </Typography.Paragraph>
+                                )
+                              })}
+                          </div>
+                        ),
+                      },
+                    ]}
+                  />
+                ) : null}
+
+                <Space style={{ marginTop: 5 }}>
+                  <Button
+                    danger
+                    disabled={!canEdit || session.isLoading || billboards.isSaving}
+                    onClick={async () => {
+                      await billboards.remove(item.id)
+                      if (billboards.lastError) {
+                        notifyError('Ошибка удаления', billboards.lastError)
+                        return
+                      }
+                      notifySuccess('Конструкция удалена')
+                    }}
+                  >
+                    Удалить
+                  </Button>
+                </Space>
+              </Card>
+                </Col>
+              ))}
+            </Row>
+          ) : (
+            <Table
+              rowKey="id"
+              style={{ marginTop: 16 }}
+              pagination={{ pageSize: 20 }}
+              dataSource={billboards.items}
+              columns={[
+                {
+                  title: 'Конструкция',
+                  key: 'title',
+                  render: (_: unknown, item: Billboard) => (
+                    <div>
+                      <div style={{ fontWeight: 600 }}>{item.title}</div>
+                      <div style={{ color: 'rgba(0,0,0,0.6)', fontSize: 12 }}>
+                        {item.type} · {item.size}
+                      </div>
+                    </div>
+                  ),
+                },
+                {
+                  title: 'Адрес',
+                  key: 'address',
+                  render: (_: unknown, item: Billboard) => <span>{item.address}</span>,
+                },
+                {
+                  title: 'Цена',
+                  key: 'price',
+                  render: (_: unknown, item: Billboard) => (
+                    <span>{item.pricePerWeek.toLocaleString('ru-RU')} RUB / неделя</span>
+                  ),
+                },
+                {
+                  title: 'Статус',
+                  key: 'status',
+                  render: (_: unknown, item: Billboard) => (
+                    <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                      <Typography.Text style={{ marginRight: 8 }}>
+                        {(() => {
+                          const statusAvailable = parseStatusToAvailable(item.extraFields?.Status)
+                          const isAvailable = statusAvailable ?? item.available
+                          return isAvailable ? 'Доступен' : 'Забронирован'
+                        })()}
+                      </Typography.Text>
+                    </span>
+                  ),
+                },
+                {
+                  title: 'Действия',
+                  key: 'actions',
+                  render: (_: unknown, item: Billboard) => (
+                    <Button
+                      danger
+                      disabled={!canEdit || session.isLoading || billboards.isSaving}
+                      onClick={async () => {
+                        await billboards.remove(item.id)
+                        if (billboards.lastError) {
+                          notifyError('Ошибка удаления', billboards.lastError)
+                          return
+                        }
+                        notifySuccess('Конструкция удалена')
+                      }}
+                    >
+                      Удалить
+                    </Button>
+                  ),
+                },
+              ]}
+            />
+          )}
+        </Card>
+      </div>
+    </>
   )
 })

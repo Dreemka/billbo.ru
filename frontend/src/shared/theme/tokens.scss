@@ -11,17 +11,17 @@
   /* Semantic theme colors */
   --color-bg-body: var(--color-palette-4);
   --color-bg-body-start: var(--color-palette-2);
-  --color-bg-elevated: rgba(191, 141, 122, 0.22);
-  --color-bg-accent-soft: rgba(245, 176, 240, 0.12);
+  // --color-bg-elevated: rgba(191, 141, 122, 0.22);
+  // --color-bg-accent-soft: rgba(245, 176, 240, 0.12);
   --color-bg-accent-strong: rgba(191, 141, 122, 0.25);
   --color-text-primary: var(--color-palette-2);
   --color-text-secondary: rgba(115, 101, 166, 0.74);
-  --color-border-main: rgba(115, 101, 166, 0.28);
-  --color-border-soft: rgba(115, 101, 166, 0.18);
-  --color-border-dashed: rgba(115, 101, 166, 0.36);
-  --color-focus: var(--color-palette-1);
+  --color-border-main: rgba(152, 38, 219, 0.28);
+  // --color-border-soft: rgba(152, 38, 219, 0.18);
+  // --color-border-dashed: rgba(152, 38, 219, 0.36);
+  --color-focus: #9826db;
   --color-danger: var(--color-palette-1);
-  --color-overlay: rgba(115, 101, 166, 0.55);
+  --color-overlay: rgba(152, 38, 219, 0.55);
 
   --radius-sm: 8px;
   --radius-md: 10px;

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Button, Card, Input, Space } from 'antd'
 import type { Billboard } from '../../entities/types'
+import { parseStatusToAvailable } from '../../shared/lib/parseStatusToAvailable'
 import { ensureYandexMapsScript, getYandexMapsApiKey } from '../../shared/lib/yandexMapsLoader'
 
 interface YandexMapProps {
@@ -18,6 +19,11 @@ type YandexPlacemarkHandle = {
 function getMarkerPreset(available: boolean, focused: boolean) {
   if (focused) return 'islands#violetDotIcon'
   return available ? 'islands#greenDotIcon' : 'islands#redDotIcon'
+}
+
+function getBillboardAvailable(item: Billboard) {
+  const statusAvailable = parseStatusToAvailable(item.extraFields?.Status)
+  return statusAvailable ?? item.available
 }
 
 export function YandexMap({ items, focusBillboardId = null }: YandexMapProps) {
@@ -97,7 +103,7 @@ export function YandexMap({ items, focusBillboardId = null }: YandexMapProps) {
         },
         {
           // Активная метка подсвечивается во втором эффекте (без пересборки bounds).
-          preset: getMarkerPreset(item.available, false),
+          preset: getMarkerPreset(getBillboardAvailable(item), false),
         },
       ) as YandexPlacemarkHandle
       placemarksByIdRef.current.set(item.id, placemark)
@@ -131,7 +137,7 @@ export function YandexMap({ items, focusBillboardId = null }: YandexMapProps) {
       const item = items.find((i) => i.id === id)
       if (!item) return
       try {
-        pm.options.set('preset', getMarkerPreset(item.available, id === focusBillboardId))
+        pm.options.set('preset', getMarkerPreset(getBillboardAvailable(item), id === focusBillboardId))
       } catch {
         // ignore
       }
