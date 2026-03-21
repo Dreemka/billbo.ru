@@ -13,6 +13,9 @@ dist-ssr
 *.local
 *.tsbuildinfo
 
+# Production deploy secrets (на сервере создайте из deploy.env.example)
+.env.deploy
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

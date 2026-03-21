@@ -1,0 +1,16 @@
+billbo.ru {
+	encode gzip zstd
+
+	handle /api* {
+		reverse_proxy backend:4000
+	}
+
+	handle {
+		reverse_proxy frontend:80
+	}
+}
+
+# Раскомментируйте после добавления A-записи www → IP сервера:
+# www.billbo.ru {
+# 	redir https://billbo.ru{uri} permanent
+# }

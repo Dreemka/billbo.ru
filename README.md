@@ -57,6 +57,64 @@ docker compose up --build
 ```bash
 docker compose down
 ```
+
+## Деплой на VPS (production, HTTPS)
+
+Стек: PostgreSQL + Nest (миграции при старте) + статика фронта в Nginx + [Caddy](https://caddyserver.com/) с автоматическим Let’s Encrypt для **https://billbo.ru**.
+
+### 1. DNS
+
+- Запись **A** для `billbo.ru` → публичный IP VPS (и при необходимости для `www`).
+- Пока DNS не указал на сервер, Caddy не сможет выдать сертификат.
+
+### 2. Файлы на сервере
+
+Скопируйте репозиторий в каталог, например `/opt/billbo.ru` (`git clone` или `rsync`).
+
+Создайте секреты (файл **не коммитится**):
+
+```bash
+cp deploy.env.example .env.deploy
+nano .env.deploy   # POSTGRES_PASSWORD, JWT_*
+```
+
+### 3. Запуск
+
+Из корня репозитория на сервере:
+
+```bash
+docker compose --env-file .env.deploy -f docker-compose.prod.yml up -d --build
+```
+
+Проверка: `https://billbo.ru` и `https://billbo.ru/api` (API отвечает под префиксом `/api`).
+
+Остановка:
+
+```bash
+docker compose --env-file .env.deploy -f docker-compose.prod.yml down
+```
+
+### 4. Обновление после правок в коде
+
+Снова доставьте код на сервер и выполните ту же команду `up -d --build`.
+
+### Скрипт с вашего компьютера
+
+Если SSH-ключ уже настроен для `root@ВАШ_IP`:
+
+```bash
+chmod +x deploy/sync-and-up.sh
+./deploy/sync-and-up.sh root@ВАШ_IP /opt/billbo.ru
+```
+
+Перед первым запуском на сервере один раз создайте там `.env.deploy` (см. шаг 2).
+
+### Замечания по безопасности
+
+- Не публикуйте пароли и JWT в репозиторий.
+- Предпочтительно вход по **SSH-ключу**, отключить парольный вход для `root` после настройки.
+- IP и логин сервера не стоит светить в публичных чатах.
+
 # Billbo.ru Frontend
 
 Каркас веб-сервиса аренды наружной рекламы для двух ролей:
