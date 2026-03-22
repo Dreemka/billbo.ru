@@ -11,8 +11,24 @@ export class AdSurfacesService {
   async listPublic() {
     const rows = await this.prisma.adSurface.findMany({
       orderBy: { createdAt: 'desc' },
+      include: { company: { select: { id: true, name: true } } },
     })
-    return rows.map(this.mapRow)
+    return rows.map((r) => this.mapRow(r))
+  }
+
+  /** Только конструкции компании владельца (по связи User → Company). */
+  async listForCompanyOwner(ownerUserId: string) {
+    const company = await this.prisma.company.findUnique({
+      where: { ownerUserId: ownerUserId },
+    })
+    if (!company) return []
+
+    const rows = await this.prisma.adSurface.findMany({
+      where: { companyId: company.id },
+      orderBy: { createdAt: 'desc' },
+      include: { company: { select: { id: true, name: true } } },
+    })
+    return rows.map((r) => this.mapRow(r))
   }
 
   async createForUser(userId: string, dto: CreateAdSurfaceDto) {
@@ -44,6 +60,7 @@ export class AdSurfacesService {
         isActive: dto.available,
         extraFields: dto.extraFields ?? undefined,
       },
+      include: { company: { select: { id: true, name: true } } },
     })
     return this.mapRow(created)
   }
@@ -109,6 +126,7 @@ export class AdSurfacesService {
         isActive: dto.available,
         extraFields: dto.extraFields ?? undefined,
       },
+      include: { company: { select: { id: true, name: true } } },
     })
     return this.mapRow(updated)
   }
@@ -151,6 +169,7 @@ export class AdSurfacesService {
     size: string
     isActive: boolean
     extraFields: unknown
+    company?: { id: string; name: string } | null
   }) {
     return {
       id: row.id,
@@ -162,6 +181,8 @@ export class AdSurfacesService {
       pricePerWeek: row.pricePerWeek,
       size: row.size,
       available: row.isActive,
+      companyId: row.company?.id,
+      companyName: row.company?.name ?? '',
       // Если JSON не заполнен — возвращаем `null`, чтобы UI не показывал пустой блок.
       extraFields: (row.extraFields ? (row.extraFields as Record<string, unknown>) : null) ?? null,
     }

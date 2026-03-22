@@ -41,6 +41,10 @@ export const billboardsApi = {
   list() {
     return http.get<Billboard[]>('/billboards')
   },
+  /** Только конструкции своей компании (роль COMPANY; SUPERADMIN — полный список). */
+  listMine() {
+    return http.get<Billboard[]>('/billboards/mine')
+  },
   create(payload: Omit<Billboard, 'id'>) {
     return http.post<Billboard>('/billboards', payload)
   },

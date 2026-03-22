@@ -550,7 +550,7 @@ export const AdminBillboardsPage = observer(function AdminBillboardsPage() {
 
   useEffect(() => {
     if (session.role !== 'admin') return
-    void billboards.load()
+    void billboards.load('mine')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session.role])
 
@@ -565,88 +565,93 @@ export const AdminBillboardsPage = observer(function AdminBillboardsPage() {
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 15 }}>
         <Card type="inner" title="Импорт CSV" loading={csvParsing}>
-        <Space style={{ width: '100%', display: 'flex', gap: 5 }}>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".csv,text/csv"
-            style={{ display: 'none' }}
-            onChange={(e) => {
-              const file = e.currentTarget.files?.[0]
-              if (!file) return
-              void onCsvFileSelected(file)
-              // allow selecting the same file again
-              e.currentTarget.value = ''
-            }}
-            disabled={!canEdit || billboards.isSaving}
-          />
-
-          <Button
-            icon={<DownloadOutlined />}
-            disabled={!canEdit || billboards.isSaving}
-            onClick={() => fileInputRef.current?.click()}
-          >
-            Импорт CSV
-          </Button>
-
-          <Button
-            icon={<UploadOutlined />}
-            disabled={!canEdit || billboards.isSaving}
-            onClick={() => void exportCsv()}
-          >
-            Экспорт CSV
-          </Button>
-
-          {csvSurfaces.length ? (
-            <Alert
-              type="success"
-              showIcon
-              message={`Распознано строк: ${csvSurfaces.length}`}
-              style={{ padding: 0 }}
+          <Space orientation="vertical" size="middle" style={{ width: '100%', display: 'flex' }}>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".csv,text/csv"
+              style={{ display: 'none' }}
+              onChange={(e) => {
+                const file = e.currentTarget.files?.[0]
+                if (!file) return
+                void onCsvFileSelected(file)
+                // allow selecting the same file again
+                e.currentTarget.value = ''
+              }}
+              disabled={!canEdit || billboards.isSaving}
             />
-          ) : null}
 
-          {csvError ? <Alert type="error" showIcon message={csvError} style={{ padding: 0 }} /> : null}
-
-          {csvSurfaces.length ? (
-            <Space orientation="vertical" size={5} style={{ width: '100%' }}>
+            {/* Кнопки выбора файла и экспорта — одна строка */}
+            <Space size="small" wrap={false} style={{ flexWrap: 'nowrap' }}>
               <Button
-                type="primary"
+                icon={<DownloadOutlined />}
                 disabled={!canEdit || billboards.isSaving}
-                loading={billboards.isSaving}
-                onClick={async () => {
-                  await billboards.bulkImport(csvSurfaces)
-                  if (billboards.lastError) {
-                    notifyError('Ошибка импорта CSV', billboards.lastError)
-                    return
-                  }
-                  notifySuccess('Импорт CSV завершен', `Добавлено: ${csvSurfaces.length}`)
-                  setCsvSurfaces([])
-                  setCsvError(null)
-                }}
+                onClick={() => fileInputRef.current?.click()}
               >
-                Импортировать
+                Импорт CSV
               </Button>
               <Button
+                icon={<UploadOutlined />}
                 disabled={!canEdit || billboards.isSaving}
-                onClick={() => {
-                  setCsvSurfaces([])
-                  setCsvError(null)
-                }}
+                onClick={() => void exportCsv()}
               >
-                Очистить
+                Экспорт CSV
               </Button>
             </Space>
-          ) : null}
 
-          {csvSurfaces.length ? (
-            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-              Пример данных: {csvSurfaces.slice(0, 3).map((s) => `${s.title} (${s.lat}, ${s.lng})`).join(' • ')}
-              {csvSurfaces.length > 3 ? ' • …' : ''}
-            </Typography.Text>
-          ) : null}
-        </Space>
-      </Card>
+            {csvSurfaces.length ? (
+              <Alert
+                type="success"
+                showIcon
+                message={`Распознано строк: ${csvSurfaces.length}`}
+                style={{ width: '100%' }}
+              />
+            ) : null}
+
+            {csvError ? (
+              <Alert type="error" showIcon message={csvError} style={{ width: '100%' }} />
+            ) : null}
+
+            {/* Подтверждение импорта — одна строка */}
+            {csvSurfaces.length ? (
+              <Space size="small" wrap={false} style={{ flexWrap: 'nowrap' }}>
+                <Button
+                  type="primary"
+                  disabled={!canEdit || billboards.isSaving}
+                  loading={billboards.isSaving}
+                  onClick={async () => {
+                    await billboards.bulkImport(csvSurfaces)
+                    if (billboards.lastError) {
+                      notifyError('Ошибка импорта CSV', billboards.lastError)
+                      return
+                    }
+                    notifySuccess('Импорт CSV завершен', `Добавлено: ${csvSurfaces.length}`)
+                    setCsvSurfaces([])
+                    setCsvError(null)
+                  }}
+                >
+                  Импортировать
+                </Button>
+                <Button
+                  disabled={!canEdit || billboards.isSaving}
+                  onClick={() => {
+                    setCsvSurfaces([])
+                    setCsvError(null)
+                  }}
+                >
+                  Очистить
+                </Button>
+              </Space>
+            ) : null}
+
+            {csvSurfaces.length ? (
+              <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block' }}>
+                Пример данных: {csvSurfaces.slice(0, 3).map((s) => `${s.title} (${s.lat}, ${s.lng})`).join(' • ')}
+                {csvSurfaces.length > 3 ? ' • …' : ''}
+              </Typography.Text>
+            ) : null}
+          </Space>
+        </Card>
 
         <Card>
           <Form layout="vertical" className="app-form">

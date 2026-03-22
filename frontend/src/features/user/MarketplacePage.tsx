@@ -1,4 +1,4 @@
-import { Alert, Badge, Button, Card, Col, Collapse, Divider, Dropdown, Input, Modal, Radio, Row, Space, Table, Typography } from 'antd'
+import { Alert, Badge, Button, Card, Col, Collapse, Divider, Dropdown, Input, Modal, Radio, Row, Select, Space, Table, Typography } from 'antd'
 import {
   AppstoreOutlined,
   CalendarOutlined,
@@ -30,6 +30,7 @@ export const MarketplacePage = observer(function MarketplacePage() {
   const mapSectionRef = useRef<HTMLDivElement | null>(null)
   const [viewMode, setViewMode] = useState<'cards' | 'list'>('cards')
   const [billboardSearchQuery, setBillboardSearchQuery] = useState('')
+  const [companyFilterId, setCompanyFilterId] = useState<string | null>(null)
   const [favoriteIds, setFavoriteIds] = useState<string[]>([])
   const [onlyFavorites, setOnlyFavorites] = useState(false)
   const [activeExtraBillboardId, setActiveExtraBillboardId] = useState<string | null>(null)
@@ -38,7 +39,7 @@ export const MarketplacePage = observer(function MarketplacePage() {
   const favoriteIdSet = useMemo(() => new Set(favoriteIds), [favoriteIds])
 
   useEffect(() => {
-    void billboards.load()
+    void billboards.load('catalog')
     void user.loadWallet()
 
     void favoritesApi
@@ -55,9 +56,32 @@ export const MarketplacePage = observer(function MarketplacePage() {
     return billboards.items.filter((b) => favoriteIdSet.has(b.id))
   }, [onlyFavorites, billboards.items, favoriteIdSet])
 
+  const companyOptions = useMemo(() => {
+    const m = new Map<string, string>()
+    itemsToShow.forEach((b) => {
+      const name = b.companyName?.trim()
+      if (b.companyId && name) m.set(b.companyId, name)
+    })
+    return Array.from(m.entries())
+      .map(([value, label]) => ({ value, label }))
+      .sort((a, b) => a.label.localeCompare(b.label, 'ru'))
+  }, [itemsToShow])
+
+  useEffect(() => {
+    if (!companyFilterId) return
+    if (!itemsToShow.some((b) => b.companyId === companyFilterId)) {
+      setCompanyFilterId(null)
+    }
+  }, [itemsToShow, companyFilterId])
+
+  const itemsAfterCompanyFilter = useMemo(() => {
+    if (!companyFilterId) return itemsToShow
+    return itemsToShow.filter((b) => b.companyId === companyFilterId)
+  }, [itemsToShow, companyFilterId])
+
   const displayedBillboards = useMemo(
-    () => filterBillboardsBySearchQuery(itemsToShow, billboardSearchQuery),
-    [itemsToShow, billboardSearchQuery],
+    () => filterBillboardsBySearchQuery(itemsAfterCompanyFilter, billboardSearchQuery),
+    [itemsAfterCompanyFilter, billboardSearchQuery],
   )
 
   useEffect(() => {
@@ -122,6 +146,17 @@ export const MarketplacePage = observer(function MarketplacePage() {
             onChange={(e) => setBillboardSearchQuery(e.target.value)}
             style={{ width: 'min(100%, 360px)' }}
           />
+          <Select
+            allowClear
+            placeholder="Все компании"
+            style={{ minWidth: 200, width: 'min(100%, 280px)' }}
+            value={companyFilterId ?? undefined}
+            onChange={(v) => setCompanyFilterId(v ?? null)}
+            options={companyOptions}
+            showSearch
+            optionFilterProp="label"
+            disabled={!companyOptions.length}
+          />
         </Space>
 
         <Button
@@ -135,9 +170,9 @@ export const MarketplacePage = observer(function MarketplacePage() {
         />
       </div>
 
-      {billboardSearchQuery.trim() && displayedBillboards.length === 0 ? (
+      {(billboardSearchQuery.trim() || companyFilterId) && displayedBillboards.length === 0 ? (
         <Typography.Paragraph type="secondary" style={{ marginTop: 16, marginBottom: 0 }}>
-          Ничего не найдено — попробуйте другой запрос.
+          Ничего не найдено — попробуйте другой запрос или сбросьте фильтр компании.
         </Typography.Paragraph>
       ) : null}
 
@@ -198,6 +233,11 @@ export const MarketplacePage = observer(function MarketplacePage() {
                 </Typography.Paragraph>
                 <Typography.Paragraph>
                   Стоимость: {item.pricePerWeek.toLocaleString('ru-RU')} RUB / неделя
+                </Typography.Paragraph>
+
+                <Typography.Paragraph style={{ marginBottom: 8 }}>
+                  <Typography.Text type="secondary">Компания: </Typography.Text>
+                  {item.companyName?.trim() || '—'}
                 </Typography.Paragraph>
 
               {(() => {
@@ -320,6 +360,13 @@ export const MarketplacePage = observer(function MarketplacePage() {
               title: 'Цена',
               key: 'price',
               render: (_value, item) => `${item.pricePerWeek.toLocaleString('ru-RU')} RUB / неделя`,
+            },
+            {
+              title: 'Компания',
+              key: 'company',
+              width: 160,
+              ellipsis: true,
+              render: (_value, item) => item.companyName?.trim() || '—',
             },
             {
               title: 'Статус',

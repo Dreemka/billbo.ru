@@ -180,25 +180,37 @@ class CompanyStore {
   }
 }
 
+export type BillboardsListSource = 'catalog' | 'mine'
+
 class BillboardsStore {
   items: Billboard[] = []
   isLoading = false
   isSaving = false
   lastError: string | null = null
   isLoaded = false
+  /** Откуда загружен список: весь каталог или только своя компания. */
+  listSource: BillboardsListSource = 'catalog'
 
   constructor() {
     makeAutoObservable(this)
   }
 
-  async load() {
+  async load(source: BillboardsListSource = 'catalog') {
+    const sourceChanged = this.listSource !== source
+    this.listSource = source
+    if (sourceChanged) {
+      runInAction(() => {
+        this.isLoaded = false
+      })
+    }
     if (this.isLoaded || this.isLoading) {
       return
     }
     this.isLoading = true
     this.lastError = null
     try {
-      const response = await billboardsApi.list()
+      const response =
+        source === 'mine' ? await billboardsApi.listMine() : await billboardsApi.list()
       runInAction(() => {
         this.items = response.data
         this.isLoaded = true
@@ -218,7 +230,7 @@ class BillboardsStore {
 
   async reload() {
     this.isLoaded = false
-    await this.load()
+    await this.load(this.listSource)
   }
 
   async add(payload: Omit<Billboard, 'id'>) {
@@ -227,7 +239,8 @@ class BillboardsStore {
     try {
       const response = await billboardsApi.create(payload)
       runInAction(() => {
-        this.items.unshift(response.data)
+        // Новый массив — иначе React/useMemo с deps [items] не увидят unshift по той же ссылке (MobX).
+        this.items = [response.data, ...this.items]
       })
     } catch (error) {
       console.error('Billboards add failed', error)
@@ -458,6 +471,7 @@ class RootStore {
       this.user.isProfileLoaded = false
       this.user.isWalletLoaded = false
       this.billboards.isLoaded = false
+      this.billboards.listSource = 'catalog'
       this.company.lastError = null
       this.user.lastError = null
       this.billboards.lastError = null

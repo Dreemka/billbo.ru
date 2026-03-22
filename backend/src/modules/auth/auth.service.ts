@@ -17,15 +17,33 @@ export class AuthService {
 
   async register(dto: RegisterDto) {
     const passwordHash = await hash(dto.password, 10)
-    const user = await this.prisma.user.create({
-      data: {
-        email: dto.email,
-        passwordHash,
-        fullName: dto.fullName,
-        phone: dto.phone,
-        role: dto.role ?? Role.USER,
-      },
+    const role = dto.role ?? Role.USER
+
+    const user = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.user.create({
+        data: {
+          email: dto.email,
+          passwordHash,
+          fullName: dto.fullName,
+          phone: dto.phone,
+          role,
+        },
+      })
+
+      if (role === Role.COMPANY) {
+        await tx.company.create({
+          data: {
+            ownerUserId: created.id,
+            name: dto.companyName!,
+            city: dto.companyCity!,
+            description: '',
+          },
+        })
+      }
+
+      return created
     })
+
     return this.issueTokens(user.id, user.role)
   }
 

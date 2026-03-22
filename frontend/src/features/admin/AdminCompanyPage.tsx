@@ -21,7 +21,11 @@ export const AdminCompanyPage = observer(function AdminCompanyPage() {
   const [repeatPasswordDraft, setRepeatPasswordDraft] = useState('')
 
   const canEdit = session.role === 'admin'
-  const isValidCompany = companyNameDraft.trim().length > 1 && companyCityDraft.trim().length > 1 && companyDescriptionDraft.trim().length > 10
+  /** Название и город — мин. 2 символа (как на бэке). Описание необязательно. */
+  const isValidCompany =
+    companyNameDraft.trim().length >= 2 &&
+    companyCityDraft.trim().length >= 2 &&
+    companyDescriptionDraft.trim().length <= 2000
   const isValidRepEmail = repEmailDraft.includes('@') && repEmailDraft.includes('.')
   const isValidRepProfile = repFullNameDraft.trim().length > 1 && isValidRepEmail && repPhoneDraft.trim().length >= 10
 

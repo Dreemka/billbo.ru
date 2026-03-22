@@ -12,6 +12,8 @@ function collectBillboardSearchHaystack(item: Billboard): string {
     String(item.pricePerWeek),
     item.size,
     String(item.available),
+    item.companyId ?? '',
+    item.companyName ?? '',
   ]
   if (item.extraFields) {
     for (const [k, v] of Object.entries(item.extraFields)) {

@@ -40,6 +40,14 @@ function getBillboardAvailable(item: Billboard) {
   return statusAvailable ?? item.available
 }
 
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
+
 export function YandexMap({
   items,
   focusBillboardId = null,
@@ -117,11 +125,18 @@ export function YandexMap({
     }
 
     items.forEach((item) => {
+      const titleEsc = escapeHtml(item.title)
+      const addressEsc = escapeHtml(item.address)
+      const companyName = item.companyName?.trim()
+      const companyEsc = companyName ? escapeHtml(companyName) : ''
+      const companyBlock = companyEsc ? `Компания: ${companyEsc}<br/>` : ''
+      const hintContent = companyName ? `${companyName} — ${item.title}` : item.title
+
       const placemark = new ymaps.Placemark(
         [item.lat, item.lng],
         {
-          hintContent: item.title,
-          balloonContent: `<strong>${item.title}</strong><br/>${item.address}<br/>Цена: ${item.pricePerWeek.toLocaleString('ru-RU')} RUB/неделя`,
+          hintContent,
+          balloonContent: `<strong>${titleEsc}</strong><br/>${addressEsc}<br/>${companyBlock}Цена: ${item.pricePerWeek.toLocaleString('ru-RU')} RUB/неделя`,
         },
         {
           preset: getMarkerPreset(getBillboardAvailable(item), false),

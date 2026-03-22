@@ -1,8 +1,10 @@
-import { observer } from 'mobx-react-lite'
-import { useEffect } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
 import { Alert, Button, Card, Form, Input, Radio, Tabs, Typography } from 'antd'
+import { useEffect, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
+
+import { AuthCardHeader } from './AuthCardHeader'
 import type { Role } from '../../entities/types'
+import { observer } from 'mobx-react-lite'
 import { useStore } from '../../app/store/rootStore'
 
 function canAccessPathWithRole(path: string, role: Exclude<Role, 'guest'>): boolean {
@@ -24,6 +26,8 @@ type RegisterFields = {
   fullName: string
   phone?: string
   accountType: 'USER' | 'COMPANY'
+  companyName?: string
+  companyCity?: string
 }
 
 export const LoginPage = observer(function LoginPage() {
@@ -34,6 +38,8 @@ export const LoginPage = observer(function LoginPage() {
 
   const [loginForm] = Form.useForm<LoginFields>()
   const [registerForm] = Form.useForm<RegisterFields>()
+  const registerAccountType = Form.useWatch('accountType', registerForm) ?? 'USER'
+  const [authTab, setAuthTab] = useState<'login' | 'register'>('login')
 
   useEffect(() => {
     if (session.role === 'guest' || !session.token) return
@@ -60,6 +66,10 @@ export const LoginPage = observer(function LoginPage() {
       fullName: values.fullName.trim(),
       phone: values.phone?.trim() || undefined,
       role: values.accountType,
+      companyName:
+        values.accountType === 'COMPANY' ? values.companyName?.trim() || undefined : undefined,
+      companyCity:
+        values.accountType === 'COMPANY' ? values.companyCity?.trim() || undefined : undefined,
     })
     if (!ok) return
     const role = session.role as Exclude<Role, 'guest'>
@@ -74,23 +84,18 @@ export const LoginPage = observer(function LoginPage() {
         alignItems: 'center',
         justifyContent: 'center',
         padding: 24,
-        background: 'var(--color-bg-body, #0f1419)',
       }}
     >
       <Card style={{ width: '100%', maxWidth: 420 }}>
-        <Typography.Title level={3} style={{ marginTop: 0, textAlign: 'center' }}>
-          Billbo.ru
-        </Typography.Title>
-        <Typography.Paragraph type="secondary" style={{ textAlign: 'center' }}>
-          Вход для компании и клиентов
-        </Typography.Paragraph>
+        <AuthCardHeader />
 
         {session.authError ? (
           <Alert type="error" showIcon message={session.authError} style={{ marginBottom: 16 }} />
         ) : null}
 
         <Tabs
-          defaultActiveKey="login"
+          activeKey={authTab}
+          onChange={(key) => setAuthTab(key as 'login' | 'register')}
           centered
           destroyOnHidden
           items={[
@@ -135,6 +140,24 @@ export const LoginPage = observer(function LoginPage() {
                       <Radio.Button value="COMPANY">Компания</Radio.Button>
                     </Radio.Group>
                   </Form.Item>
+                  {registerAccountType === 'COMPANY' ? (
+                    <>
+                      <Form.Item
+                        label="Название компании"
+                        name="companyName"
+                        rules={[{ required: true, min: 2, message: 'Укажите название (от 2 символов)' }]}
+                      >
+                        <Input placeholder="ООО «Реклама»" />
+                      </Form.Item>
+                      <Form.Item
+                        label="Город"
+                        name="companyCity"
+                        rules={[{ required: true, min: 2, message: 'Укажите город (от 2 символов)' }]}
+                      >
+                        <Input placeholder="Москва" />
+                      </Form.Item>
+                    </>
+                  ) : null}
                   <Form.Item
                     label="ФИО / контактное лицо"
                     name="fullName"

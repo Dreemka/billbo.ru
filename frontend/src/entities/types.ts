@@ -16,6 +16,9 @@ export interface Billboard {
   pricePerWeek: number
   size: string
   available: boolean
+  /** Владелец конструкции (из бэка, для маркетплейса и карты). */
+  companyId?: string
+  companyName?: string
   extraFields?: Record<string, unknown> | null
 }
 
@@ -56,6 +59,9 @@ export interface RegisterPayload {
   phone?: string
   /** Prisma Role */
   role: 'USER' | 'COMPANY'
+  /** Обязательны при role === COMPANY */
+  companyName?: string
+  companyCity?: string
 }
 
 export interface WalletTopUpPayload {

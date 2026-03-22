@@ -1,4 +1,5 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, UnauthorizedException } from '@nestjs/common'
+import { Body, Controller, Delete, ForbiddenException, Get, Param, Post, Put, UnauthorizedException } from '@nestjs/common'
+import { Role } from '@prisma/client'
 import { CreateAdSurfaceDto } from './dto/create-ad-surface.dto'
 import { CreateAdSurfacesBulkDto } from './dto/create-ad-surfaces-bulk.dto'
 import { AdSurfacesService } from './ad-surfaces.service'
@@ -9,10 +10,27 @@ import { Public } from '../../common/auth/public.decorator'
 export class AdSurfacesController {
   constructor(private readonly adSurfacesService: AdSurfacesService) {}
 
+  /** Полный каталог (маркетплейс для гостей и клиентов). */
   @Public()
   @Get()
-  listPublic() {
+  listPublicCatalog() {
     return this.adSurfacesService.listPublic()
+  }
+
+  /**
+   * Кабинет компании: только свои конструкции.
+   * SUPERADMIN — полный список (модерация).
+   */
+  @Get('mine')
+  listMine(@CurrentUser() user: JwtUserPayload | undefined) {
+    if (!user?.sub) throw new UnauthorizedException()
+    if (user.role === Role.SUPERADMIN) {
+      return this.adSurfacesService.listPublic()
+    }
+    if (user.role !== Role.COMPANY) {
+      throw new ForbiddenException('Список своих конструкций доступен только аккаунту компании')
+    }
+    return this.adSurfacesService.listForCompanyOwner(user.sub)
   }
 
   @Post()
