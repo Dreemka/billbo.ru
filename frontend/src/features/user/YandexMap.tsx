@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
 import { Button, Card, Input, Space, Typography } from 'antd'
+import { ensureYandexMapsScript, getYandexMapsApiKey } from '../../shared/lib/yandexMapsLoader'
+import { useEffect, useMemo, useRef, useState } from 'react'
+
 import type { Billboard } from '../../entities/types'
 import { parseStatusToAvailable } from '../../shared/lib/parseStatusToAvailable'
 import { reverseGeocodeLatLngToAddress } from '../../shared/lib/yandexGeocode'
-import { ensureYandexMapsScript, getYandexMapsApiKey } from '../../shared/lib/yandexMapsLoader'
 
 export type MapClickPlacementPayload = {
   lat: number
@@ -136,7 +137,7 @@ export function YandexMap({
         [item.lat, item.lng],
         {
           hintContent,
-          balloonContent: `<strong>${titleEsc}</strong><br/>${addressEsc}<br/>${companyBlock}Цена: ${item.pricePerWeek.toLocaleString('ru-RU')} RUB/неделя`,
+          balloonContent: `<strong>${titleEsc}</strong><br/>${addressEsc}<br/>${companyBlock}Цена: ${item.pricePerWeek.toLocaleString('ru-RU')} руб / месяц`,
         },
         {
           preset: getMarkerPreset(getBillboardAvailable(item), false),

@@ -21,7 +21,7 @@ export const AppLayout = observer(function AppLayout() {
   ]
 
   const userItems = [
-    { key: '/user/marketplace', label: 'Маркетплейс', icon: <ShoppingOutlined /> },
+    { key: '/user/marketplace', label: 'Каталог', icon: <ShoppingOutlined /> },
     { key: '/user/profile', label: 'Профиль', icon: <UserOutlined /> },
     { key: '/user/wallet', label: 'Кошелек', icon: <WalletOutlined /> },
   ]

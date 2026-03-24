@@ -1,5 +1,4 @@
-import { observer } from 'mobx-react-lite'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Alert, Badge, Button, Card, Col, Collapse, Divider, Dropdown, Form, Input, InputNumber, Modal, Radio, Row, Select, Space, Spin, Table, Typography } from 'antd'
 import {
   AppstoreOutlined,
   CheckOutlined,
@@ -15,19 +14,21 @@ import {
   UnorderedListOutlined,
   UploadOutlined,
 } from '@ant-design/icons'
-import { Alert, Badge, Button, Card, Col, Collapse, Divider, Dropdown, Form, Input, InputNumber, Modal, Radio, Row, Select, Space, Spin, Table, Typography } from 'antd'
-import { useStore } from '../../app/store/rootStore'
-import type { Billboard } from '../../entities/types'
-import { tryParseLatLngFromText } from '../../shared/lib/parseCoords'
-import { parseCsv } from '../../shared/lib/parseCsv'
-import { geocodeAddressToLatLng } from '../../shared/lib/yandexGeocode'
-import { getYandexMapsApiKey } from '../../shared/lib/yandexMapsLoader'
-import { formatExtraField } from '../../shared/lib/formatExtraField'
 import { notifyError, notifySuccess } from '../../shared/lib/notify'
-import { parseStatusToAvailable } from '../../shared/lib/parseStatusToAvailable'
-import { filterBillboardsBySearchQuery } from '../../shared/lib/filterBillboardsBySearchQuery'
+import { useEffect, useMemo, useRef, useState } from 'react'
+
+import type { Billboard } from '../../entities/types'
 import { ExternalImagePreview } from '../../shared/ui/ExternalImagePreview'
 import { YandexMap } from '../user/YandexMap'
+import { filterBillboardsBySearchQuery } from '../../shared/lib/filterBillboardsBySearchQuery'
+import { formatExtraField } from '../../shared/lib/formatExtraField'
+import { geocodeAddressToLatLng } from '../../shared/lib/yandexGeocode'
+import { getYandexMapsApiKey } from '../../shared/lib/yandexMapsLoader'
+import { observer } from 'mobx-react-lite'
+import { parseCsv } from '../../shared/lib/parseCsv'
+import { parseStatusToAvailable } from '../../shared/lib/parseStatusToAvailable'
+import { tryParseLatLngFromText } from '../../shared/lib/parseCoords'
+import { useStore } from '../../app/store/rootStore'
 
 const emptyForm: Omit<Billboard, 'id'> = {
   title: '',
@@ -1158,7 +1159,7 @@ export const AdminBillboardsPage = observer(function AdminBillboardsPage() {
                         </Typography.Paragraph>
                         <Typography.Paragraph>{item.address}</Typography.Paragraph>
                         <Typography.Paragraph>
-                          Цена: {item.pricePerWeek.toLocaleString('ru-RU')} RUB / неделя
+                          Цена: {item.pricePerWeek.toLocaleString('ru-RU')} руб / месяц
                         </Typography.Paragraph>
                         <Typography.Paragraph>
                           Локация: {item.lat}, {item.lng}
@@ -1342,7 +1343,7 @@ export const AdminBillboardsPage = observer(function AdminBillboardsPage() {
                         disabled={!canEdit || billboards.isSaving || session.isLoading}
                       />
                     ) : (
-                      <span>{item.pricePerWeek.toLocaleString('ru-RU')} RUB / неделя</span>
+                      <span>{item.pricePerWeek.toLocaleString('ru-RU')} руб / месяц</span>
                     ),
                 },
                 {

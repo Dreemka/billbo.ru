@@ -23,8 +23,9 @@ type LoginFields = { email: string; password: string }
 type RegisterFields = {
   email: string
   password: string
+  passwordConfirm: string
   fullName: string
-  phone?: string
+  phone: string
   accountType: 'USER' | 'COMPANY'
   companyName?: string
   companyCity?: string
@@ -64,7 +65,7 @@ export const LoginPage = observer(function LoginPage() {
       email: values.email.trim(),
       password: values.password,
       fullName: values.fullName.trim(),
-      phone: values.phone?.trim() || undefined,
+      phone: values.phone.trim(),
       role: values.accountType,
       companyName:
         values.accountType === 'COMPANY' ? values.companyName?.trim() || undefined : undefined,
@@ -165,8 +166,15 @@ export const LoginPage = observer(function LoginPage() {
                   >
                     <Input />
                   </Form.Item>
-                  <Form.Item label="Телефон" name="phone">
-                    <Input />
+                  <Form.Item
+                    label="Телефон"
+                    name="phone"
+                    rules={[
+                      { required: true, message: 'Укажите телефон' },
+                      { min: 10, message: 'Не короче 10 символов' },
+                    ]}
+                  >
+                    <Input placeholder="+7 900 000-00-00" autoComplete="tel" />
                   </Form.Item>
                   <Form.Item
                     label="Email"
@@ -179,6 +187,24 @@ export const LoginPage = observer(function LoginPage() {
                     label="Пароль"
                     name="password"
                     rules={[{ required: true, min: 6, message: 'Минимум 6 символов' }]}
+                  >
+                    <Input.Password autoComplete="new-password" />
+                  </Form.Item>
+                  <Form.Item
+                    label="Повторите пароль"
+                    name="passwordConfirm"
+                    dependencies={['password']}
+                    rules={[
+                      { required: true, message: 'Подтвердите пароль' },
+                      ({ getFieldValue }) => ({
+                        validator(_: unknown, value: string) {
+                          if (!value || getFieldValue('password') === value) {
+                            return Promise.resolve()
+                          }
+                          return Promise.reject(new Error('Пароли не совпадают'))
+                        },
+                      }),
+                    ]}
                   >
                     <Input.Password autoComplete="new-password" />
                   </Form.Item>

@@ -1,3 +1,4 @@
+import { Transform } from 'class-transformer'
 import { IsEmail, IsEnum, IsOptional, IsString, MinLength, ValidateIf } from 'class-validator'
 import { Role } from '@prisma/client'
 
@@ -13,9 +14,10 @@ export class RegisterDto {
   @MinLength(2)
   fullName!: string
 
-  @IsOptional()
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   @IsString()
-  phone?: string
+  @MinLength(10, { message: 'Телефон не короче 10 символов' })
+  phone!: string
 
   @IsOptional()
   @IsEnum(Role)

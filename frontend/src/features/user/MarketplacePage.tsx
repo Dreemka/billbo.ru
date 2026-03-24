@@ -3,24 +3,24 @@ import {
   AppstoreOutlined,
   CalendarOutlined,
   EllipsisOutlined,
+  FileImageOutlined,
   GlobalOutlined,
   HeartFilled,
   HeartOutlined,
-  FileImageOutlined,
   InfoCircleOutlined,
   UnorderedListOutlined,
 } from '@ant-design/icons'
 import { notifyError, notifySuccess } from '../../shared/lib/notify'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
+import { ExternalImagePreview } from '../../shared/ui/ExternalImagePreview'
 import { YandexMap } from './YandexMap'
 import { favoritesApi } from '../../shared/api/services'
+import { filterBillboardsBySearchQuery } from '../../shared/lib/filterBillboardsBySearchQuery'
 import { formatExtraField } from '../../shared/lib/formatExtraField'
 import { observer } from 'mobx-react-lite'
 import { parseStatusToAvailable } from '../../shared/lib/parseStatusToAvailable'
 import { useStore } from '../../app/store/rootStore'
-import { ExternalImagePreview } from '../../shared/ui/ExternalImagePreview'
-import { filterBillboardsBySearchQuery } from '../../shared/lib/filterBillboardsBySearchQuery'
 
 export const MarketplacePage = observer(function MarketplacePage() {
   const { billboards, user, session } = useStore()
@@ -99,10 +99,7 @@ export const MarketplacePage = observer(function MarketplacePage() {
   return (
     <>
       <div style={{ paddingLeft: 20 }}>
-        <Typography.Title level={4}>Маркетплейс рекламных поверхностей</Typography.Title>
-        <Typography.Paragraph>
-          Здесь клиент видит доступные элементы, их стоимость, статус и положение на карте.
-        </Typography.Paragraph>
+        <Typography.Title level={4}>Каталог рекламных поверхностей</Typography.Title>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 15 }}>
@@ -232,7 +229,7 @@ export const MarketplacePage = observer(function MarketplacePage() {
                   Координаты: {item.lat}, {item.lng}
                 </Typography.Paragraph>
                 <Typography.Paragraph>
-                  Стоимость: {item.pricePerWeek.toLocaleString('ru-RU')} RUB / неделя
+                  Стоимость: {item.pricePerWeek.toLocaleString('ru-RU')} руб / месяц
                 </Typography.Paragraph>
 
                 <Typography.Paragraph style={{ marginBottom: 8 }}>
@@ -359,7 +356,7 @@ export const MarketplacePage = observer(function MarketplacePage() {
             {
               title: 'Цена',
               key: 'price',
-              render: (_value, item) => `${item.pricePerWeek.toLocaleString('ru-RU')} RUB / неделя`,
+              render: (_value, item) => `${item.pricePerWeek.toLocaleString('ru-RU')} руб / месяц`,
             },
             {
               title: 'Компания',
