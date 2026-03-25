@@ -1,4 +1,22 @@
-import { Alert, Badge, Button, Card, Col, Collapse, Divider, Dropdown, Input, Modal, Radio, Row, Select, Space, Table, Typography } from 'antd'
+import {
+  Alert,
+  Badge,
+  Button,
+  Card,
+  Col,
+  Collapse,
+  Divider,
+  Dropdown,
+  Input,
+  Modal,
+  Radio,
+  Row,
+  Select,
+  Slider,
+  Space,
+  Table,
+  Typography,
+} from 'antd'
 import {
   AppstoreOutlined,
   CalendarOutlined,
@@ -31,6 +49,9 @@ export const MarketplacePage = observer(function MarketplacePage() {
   const [viewMode, setViewMode] = useState<'cards' | 'list'>('cards')
   const [billboardSearchQuery, setBillboardSearchQuery] = useState('')
   const [companyFilterId, setCompanyFilterId] = useState<string | null>(null)
+  const [priceRange, setPriceRange] = useState<[number, number] | null>(null)
+  const [priceSliderDraft, setPriceSliderDraft] = useState<[number, number] | null>(null)
+  const [priceSort, setPriceSort] = useState<'none' | 'asc' | 'desc'>('none')
   const [favoriteIds, setFavoriteIds] = useState<string[]>([])
   const [onlyFavorites, setOnlyFavorites] = useState(false)
   const [activeExtraBillboardId, setActiveExtraBillboardId] = useState<string | null>(null)
@@ -74,15 +95,56 @@ export const MarketplacePage = observer(function MarketplacePage() {
     }
   }, [itemsToShow, companyFilterId])
 
+  const priceExtent = useMemo(() => {
+    const prices = billboards.items
+      .map((b) => b.pricePerWeek)
+      .filter((p) => Number.isFinite(p))
+    if (!prices.length) return null
+    const min = Math.min(...prices)
+    const max = Math.max(...prices)
+    return { min, max }
+  }, [billboards.items])
+
+  const emin = priceExtent?.min ?? 0
+  const emax = priceExtent?.max ?? 0
+
+  useEffect(() => {
+    setPriceRange(null)
+    setPriceSliderDraft(null)
+  }, [emin, emax])
+
+  const committedPriceRange = useMemo((): [number, number] => {
+    if (!priceExtent) return [0, 0]
+    return priceRange ?? [priceExtent.min, priceExtent.max]
+  }, [priceExtent, priceRange])
+
+  const sliderDisplayValue = useMemo((): [number, number] => {
+    if (!priceExtent) return [0, 0]
+    return priceSliderDraft ?? committedPriceRange
+  }, [priceExtent, priceSliderDraft, committedPriceRange])
+
+  const isPriceFilterActive =
+    !!priceExtent &&
+    (committedPriceRange[0] > priceExtent.min || committedPriceRange[1] < priceExtent.max)
+
   const itemsAfterCompanyFilter = useMemo(() => {
     if (!companyFilterId) return itemsToShow
     return itemsToShow.filter((b) => b.companyId === companyFilterId)
   }, [itemsToShow, companyFilterId])
 
-  const displayedBillboards = useMemo(
-    () => filterBillboardsBySearchQuery(itemsAfterCompanyFilter, billboardSearchQuery),
-    [itemsAfterCompanyFilter, billboardSearchQuery],
-  )
+  const itemsAfterPriceFilter = useMemo(() => {
+    if (!priceExtent) return itemsAfterCompanyFilter
+    const [lo, hi] = committedPriceRange
+    return itemsAfterCompanyFilter.filter((b) => b.pricePerWeek >= lo && b.pricePerWeek <= hi)
+  }, [itemsAfterCompanyFilter, priceExtent, committedPriceRange])
+
+  const displayedBillboards = useMemo(() => {
+    const searched = filterBillboardsBySearchQuery(itemsAfterPriceFilter, billboardSearchQuery)
+    if (priceSort === 'none') return searched
+    return [...searched].sort((a, b) =>
+      priceSort === 'asc' ? a.pricePerWeek - b.pricePerWeek : b.pricePerWeek - a.pricePerWeek,
+    )
+  }, [itemsAfterPriceFilter, billboardSearchQuery, priceSort])
 
   useEffect(() => {
     if (!mapFocusBillboardId) return
@@ -154,6 +216,47 @@ export const MarketplacePage = observer(function MarketplacePage() {
             optionFilterProp="label"
             disabled={!companyOptions.length}
           />
+          {priceExtent && priceExtent.min < priceExtent.max ? (
+            <div style={{ minWidth: 200, flex: '1 1 240px', maxWidth: 400 }}>
+              <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 4 }}>
+                Цена (₽/мес.): {sliderDisplayValue[0].toLocaleString('ru-RU')} —{' '}
+                {sliderDisplayValue[1].toLocaleString('ru-RU')}
+              </Typography.Text>
+              <Slider
+                range
+                min={priceExtent.min}
+                max={priceExtent.max}
+                value={sliderDisplayValue}
+                onChange={(v) => setPriceSliderDraft(v as [number, number])}
+                onAfterChange={(v) => {
+                  setPriceSliderDraft(null)
+                  if (!priceExtent) return
+                  const tuple = v as [number, number]
+                  const [lo, hi] = tuple
+                  if (lo <= priceExtent.min && hi >= priceExtent.max) {
+                    setPriceRange(null)
+                  } else {
+                    setPriceRange(tuple)
+                  }
+                }}
+                tooltip={{ formatter: (v) => (v != null ? `${Number(v).toLocaleString('ru-RU')} ₽` : '') }}
+              />
+            </div>
+          ) : priceExtent ? (
+            <Typography.Text type="secondary" style={{ whiteSpace: 'nowrap' }}>
+              Цена (₽/мес.): {priceExtent.min.toLocaleString('ru-RU')}
+            </Typography.Text>
+          ) : null}
+          <Select
+            value={priceSort}
+            onChange={(v) => setPriceSort(v)}
+            style={{ minWidth: 200, width: 'min(100%, 240px)' }}
+            options={[
+              { value: 'none', label: 'Сортировка по цене' },
+              { value: 'asc', label: 'Цена: по возрастанию' },
+              { value: 'desc', label: 'Цена: по убыванию' },
+            ]}
+          />
         </Space>
 
         <Button
@@ -167,9 +270,10 @@ export const MarketplacePage = observer(function MarketplacePage() {
         />
       </div>
 
-      {(billboardSearchQuery.trim() || companyFilterId) && displayedBillboards.length === 0 ? (
+      {(billboardSearchQuery.trim() || companyFilterId || isPriceFilterActive) &&
+      displayedBillboards.length === 0 ? (
         <Typography.Paragraph type="secondary" style={{ marginTop: 16, marginBottom: 0 }}>
-          Ничего не найдено — попробуйте другой запрос или сбросьте фильтр компании.
+          Ничего не найдено — измените поиск, фильтр компании, диапазон цены или сбросьте фильтры.
         </Typography.Paragraph>
       ) : null}
 
