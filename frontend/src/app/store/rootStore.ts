@@ -33,7 +33,7 @@ class SessionStore {
       migrateLegacyAuthToCookies()
       const storedToken = getStoredAccessToken()
       const storedRole = getStoredRole()
-      if (storedToken && storedRole && (storedRole === 'admin' || storedRole === 'user')) {
+      if (storedToken && storedRole && (storedRole === 'admin' || storedRole === 'user' || storedRole === 'superadmin')) {
         this.token = storedToken
         this.role = storedRole
       }

@@ -1,5 +1,5 @@
 import { Transform } from 'class-transformer'
-import { IsEmail, IsEnum, IsOptional, IsString, MinLength, ValidateIf } from 'class-validator'
+import { IsEmail, IsIn, IsOptional, IsString, MinLength, ValidateIf } from 'class-validator'
 import { Role } from '@prisma/client'
 
 export class RegisterDto {
@@ -20,7 +20,7 @@ export class RegisterDto {
   phone!: string
 
   @IsOptional()
-  @IsEnum(Role)
+  @IsIn([Role.USER, Role.COMPANY])
   role?: Role
 
   @ValidateIf((o) => (o.role ?? Role.USER) === Role.COMPANY)

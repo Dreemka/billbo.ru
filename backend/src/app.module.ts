@@ -9,6 +9,7 @@ import { AdSurfacesModule } from './modules/ad-surfaces/ad-surfaces.module'
 import { PrismaModule } from './prisma/prisma.module'
 import { JwtAuthGuard } from './common/auth/jwt-auth.guard'
 import { FavoritesModule } from './modules/favorites/favorites.module'
+import { SuperadminModule } from './modules/superadmin/superadmin.module'
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { FavoritesModule } from './modules/favorites/favorites.module'
     CompaniesModule,
     AdSurfacesModule,
     FavoritesModule,
+    SuperadminModule,
   ],
   providers: [
     {

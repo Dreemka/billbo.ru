@@ -12,6 +12,11 @@ import type {
   FavoritesIdsResponse,
   FavoritesToggleResponse,
   WalletTopUpPayload,
+  SuperadminCompanyAccountRow,
+  SuperadminClientAccountRow,
+  SuperadminCreateUserPayload,
+  SuperadminCreateUserResponse,
+  SuperadminUpdateUserPayload,
 } from '../../entities/types'
 import { http } from './http'
 
@@ -89,5 +94,23 @@ export const favoritesApi = {
 export const bookingApi = {
   create(payload: BookingPayload) {
     return http.post<{ success: boolean }>('/bookings', payload)
+  },
+}
+
+export const superadminApi = {
+  createUser(payload: SuperadminCreateUserPayload) {
+    return http.post<SuperadminCreateUserResponse>('/superadmin/users', payload)
+  },
+  updateUser(id: string, payload: SuperadminUpdateUserPayload) {
+    return http.put<{ success: boolean }>(`/superadmin/users/${id}`, payload)
+  },
+  listCompanies() {
+    return http.get<SuperadminCompanyAccountRow[]>('/superadmin/users/companies')
+  },
+  listClients() {
+    return http.get<SuperadminClientAccountRow[]>('/superadmin/users/clients')
+  },
+  listSuperadmins() {
+    return http.get<SuperadminClientAccountRow[]>('/superadmin/users/superadmins')
   },
 }

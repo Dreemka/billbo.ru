@@ -6,15 +6,17 @@ import { AuthCardHeader } from './AuthCardHeader'
 import type { Role } from '../../entities/types'
 import { observer } from 'mobx-react-lite'
 import { useStore } from '../../app/store/rootStore'
+import { homeForSessionRole } from '../../shared/lib/homeForSessionRole'
 
 function canAccessPathWithRole(path: string, role: Exclude<Role, 'guest'>): boolean {
+  if (path.startsWith('/superadmin')) return role === 'superadmin'
   if (path.startsWith('/admin')) return role === 'admin'
   if (path.startsWith('/user')) return role === 'user'
   return true
 }
 
 function defaultHomeForRole(role: Exclude<Role, 'guest'>) {
-  return role === 'admin' ? '/admin/company' : '/user/marketplace'
+  return homeForSessionRole(role)
 }
 
 const devLoginEnabled = import.meta.env.VITE_ENABLE_DEV_LOGIN === 'true'

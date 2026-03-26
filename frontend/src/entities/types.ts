@@ -1,4 +1,4 @@
-export type Role = 'guest' | 'admin' | 'user'
+export type Role = 'guest' | 'admin' | 'user' | 'superadmin'
 
 export interface CompanyProfile {
   name: string
@@ -80,4 +80,74 @@ export interface FavoritesIdsResponse {
 
 export interface FavoritesToggleResponse {
   favorited: boolean
+}
+
+/** Ответ GET /superadmin/users/companies */
+export interface SuperadminCompanyAccountRow {
+  id: string
+  email: string
+  fullName: string
+  phone: string | null
+  avatarUrl: string | null
+  role: string
+  createdAt: string
+  updatedAt: string
+  company: {
+    id: string
+    name: string
+    city: string
+    description: string | null
+    isVerified: boolean
+    createdAt: string
+    updatedAt: string
+  } | null
+}
+
+/** Ответ GET /superadmin/users/clients */
+export interface SuperadminClientAccountRow {
+  id: string
+  email: string
+  fullName: string
+  phone: string | null
+  avatarUrl: string | null
+  role: string
+  createdAt: string
+  updatedAt: string
+  wallet: { id: string; balance: number; createdAt: string; updatedAt: string } | null
+  _count: { favorites: number; bookings: number }
+}
+
+/** POST /superadmin/users */
+export interface SuperadminCreateUserPayload {
+  email: string
+  password: string
+  fullName: string
+  phone: string
+  role: 'USER' | 'COMPANY' | 'SUPERADMIN'
+  avatarUrl?: string
+  companyName?: string
+  companyCity?: string
+  companyDescription?: string
+  companyIsVerified?: boolean
+}
+
+export interface SuperadminCreateUserResponse {
+  id: string
+  email: string
+  fullName: string
+  role: string
+}
+
+/** PUT /superadmin/users/:id */
+export interface SuperadminUpdateUserPayload {
+  email: string
+  fullName: string
+  phone: string
+  role: 'USER' | 'COMPANY' | 'SUPERADMIN'
+  avatarUrl?: string
+  password?: string
+  companyName?: string
+  companyCity?: string
+  companyDescription?: string
+  companyIsVerified?: boolean
 }

@@ -9,6 +9,10 @@ import { LoginPage } from '../features/auth/LoginPage'
 import { RoleGuard } from './router/RoleGuard'
 import { RequireAuth } from './router/RequireAuth'
 import { HomeRedirect } from './router/HomeRedirect'
+import { SuperAdminGuard } from './router/SuperAdminGuard'
+import { SuperadminCompaniesPage } from '../features/superadmin/SuperadminCompaniesPage'
+import { SuperadminClientsPage } from '../features/superadmin/SuperadminClientsPage'
+import { SuperadminSuperadminsPage } from '../features/superadmin/SuperadminSuperadminsPage'
 
 export const router = createBrowserRouter([
   {
@@ -38,6 +42,30 @@ export const router = createBrowserRouter([
           <RoleGuard role="admin">
             <AdminBillboardsPage />
           </RoleGuard>
+        ),
+      },
+      {
+        path: '/superadmin/superadmins',
+        element: (
+          <SuperAdminGuard>
+            <SuperadminSuperadminsPage />
+          </SuperAdminGuard>
+        ),
+      },
+      {
+        path: '/superadmin/companies',
+        element: (
+          <SuperAdminGuard>
+            <SuperadminCompaniesPage />
+          </SuperAdminGuard>
+        ),
+      },
+      {
+        path: '/superadmin/clients',
+        element: (
+          <SuperAdminGuard>
+            <SuperadminClientsPage />
+          </SuperAdminGuard>
         ),
       },
       {

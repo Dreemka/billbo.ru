@@ -52,7 +52,7 @@ export function migrateLegacyAuthToCookies() {
   const a = window.localStorage.getItem(TOKEN_KEY)
   const r = window.localStorage.getItem(REFRESH_KEY)
   const ro = window.localStorage.getItem(ROLE_KEY)
-  if (a && ro && (ro === 'admin' || ro === 'user')) {
+  if (a && ro && (ro === 'admin' || ro === 'user' || ro === 'superadmin')) {
     persistAuth(a, r ?? null, ro)
   }
 }

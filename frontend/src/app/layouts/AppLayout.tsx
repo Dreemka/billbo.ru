@@ -1,4 +1,12 @@
-import { AppstoreOutlined, ShoppingOutlined, UserOutlined, WalletOutlined } from '@ant-design/icons'
+import {
+  AppstoreOutlined,
+  BankOutlined,
+  CrownOutlined,
+  ShoppingOutlined,
+  TeamOutlined,
+  UserOutlined,
+  WalletOutlined,
+} from '@ant-design/icons'
 import { Avatar, Button, Layout, Menu, Typography } from 'antd'
 import { LeftOutlined, LogoutOutlined, RightOutlined } from '@ant-design/icons'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
@@ -20,13 +28,20 @@ export const AppLayout = observer(function AppLayout() {
     { key: '/admin/billboards', label: 'Рекламные элементы', icon: <AppstoreOutlined /> },
   ]
 
+  const superadminItems = [
+    { key: '/superadmin/superadmins', label: 'Супер-админы', icon: <CrownOutlined /> },
+    { key: '/superadmin/companies', label: 'Компании', icon: <BankOutlined /> },
+    { key: '/superadmin/clients', label: 'Клиенты', icon: <TeamOutlined /> },
+  ]
+
   const userItems = [
     { key: '/user/marketplace', label: 'Каталог', icon: <ShoppingOutlined /> },
     { key: '/user/profile', label: 'Профиль', icon: <UserOutlined /> },
     { key: '/user/wallet', label: 'Кошелек', icon: <WalletOutlined /> },
   ]
 
-  const menuItems = session.role === 'admin' ? adminItems : userItems
+  const menuItems =
+    session.role === 'superadmin' ? superadminItems : session.role === 'admin' ? adminItems : userItems
 
   const selectedKey =
     menuItems.find((item) => pathname === item.key || pathname.startsWith(`${item.key}/`))?.key ??
