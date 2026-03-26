@@ -36,11 +36,11 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { BillboardPhotoIconButton } from '../../shared/ui/BillboardPhotoIconButton'
 import { ExternalImagePreview } from '../../shared/ui/ExternalImagePreview'
-import { getPhotoUrl } from '../../shared/lib/photoLinkBehavior'
 import { YandexMap } from './YandexMap'
 import { favoritesApi } from '../../shared/api/services'
 import { filterBillboardsBySearchQuery } from '../../shared/lib/filterBillboardsBySearchQuery'
 import { formatExtraField } from '../../shared/lib/formatExtraField'
+import { getPhotoUrl } from '../../shared/lib/photoLinkBehavior'
 import { observer } from 'mobx-react-lite'
 import { parseStatusToAvailable } from '../../shared/lib/parseStatusToAvailable'
 import { useStore } from '../../app/store/rootStore'
@@ -173,7 +173,7 @@ export const MarketplacePage = observer(function MarketplacePage() {
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 15 }}>
-        <Card>
+        <Card variant="borderless" styles={{ root: { boxShadow: 'none' } }}>
           <div ref={mapSectionRef}>
             <YandexMap items={displayedBillboards} focusBillboardId={mapFocusBillboardId} />
           </div>

@@ -300,7 +300,7 @@ export function YandexMap({
   }
 
   return (
-    <Card>
+    <Card variant="borderless" styles={{ root: { boxShadow: 'none' }, body: { padding: 0 } }}>
       <Space style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
         <Input
           placeholder="Поиск по адресу"
@@ -316,7 +316,7 @@ export function YandexMap({
       </Space>
 
       {clickToCreate?.enabled ? (
-        <Typography.Paragraph type="secondary" style={{ marginBottom: 8, fontSize: 12 }}>
+        <Typography.Paragraph type="secondary" style={{ marginBottom: 8, fontSize: 12, padding: '0 12px' }}>
           Правый клик по карте — поставить точку новой конструкции и открыть форму с адресом по координатам.
         </Typography.Paragraph>
       ) : null}
@@ -329,7 +329,7 @@ export function YandexMap({
         }}
         style={{ height: 500, minHeight: 500 }}
       />
-      {error ? <p style={{ marginTop: 10, color: '#d94b4b' }}>{error}</p> : null}
+      {error ? <p style={{ marginTop: 10, color: '#d94b4b', padding: '0 12px 12px' }}>{error}</p> : null}
     </Card>
   )
 }

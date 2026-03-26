@@ -23,11 +23,11 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Billboard } from '../../entities/types'
 import { BillboardPhotoIconButton } from '../../shared/ui/BillboardPhotoIconButton'
 import { ExternalImagePreview } from '../../shared/ui/ExternalImagePreview'
-import { getPhotoUrl } from '../../shared/lib/photoLinkBehavior'
 import { YandexMap } from '../user/YandexMap'
 import { filterBillboardsBySearchQuery } from '../../shared/lib/filterBillboardsBySearchQuery'
 import { formatExtraField } from '../../shared/lib/formatExtraField'
 import { geocodeAddressToLatLng } from '../../shared/lib/yandexGeocode'
+import { getPhotoUrl } from '../../shared/lib/photoLinkBehavior'
 import { getYandexMapsApiKey } from '../../shared/lib/yandexMapsLoader'
 import { observer } from 'mobx-react-lite'
 import { parseCsv } from '../../shared/lib/parseCsv'
@@ -1001,7 +1001,7 @@ export const AdminBillboardsPage = observer(function AdminBillboardsPage() {
       ) : null}
         </Card>
 
-        <Card>
+        <Card variant="borderless" styles={{ root: { boxShadow: 'none' } }}>
           <div ref={mapSectionRef}>
             <YandexMap
               items={displayedBillboards}
