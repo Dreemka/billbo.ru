@@ -51,6 +51,7 @@ export class AdSurfacesService {
       data: {
         companyId: company.id,
         title: dto.title,
+        description: dto.description?.trim() || null,
         type: this.toPrismaType(dto.type),
         address: dto.address,
         lat: dto.lat,
@@ -86,6 +87,7 @@ export class AdSurfacesService {
       data: dto.surfaces.map((surface) => ({
         companyId: company.id,
         title: surface.title,
+        description: surface.description?.trim() || null,
         type: this.toPrismaType(surface.type),
         address: surface.address,
         lat: surface.lat,
@@ -117,6 +119,7 @@ export class AdSurfacesService {
       where: { id },
       data: {
         title: dto.title,
+        description: dto.description?.trim() || null,
         type: this.toPrismaType(dto.type),
         address: dto.address,
         lat: dto.lat,
@@ -161,6 +164,7 @@ export class AdSurfacesService {
   private mapRow(row: {
     id: string
     title: string
+    description: string | null
     type: SurfaceType
     address: string
     lat: unknown
@@ -174,6 +178,7 @@ export class AdSurfacesService {
     return {
       id: row.id,
       title: row.title,
+      description: row.description ?? '',
       type: row.type.toLowerCase(),
       address: row.address,
       lat: Number(row.lat),

@@ -5,6 +5,7 @@ function collectBillboardSearchHaystack(item: Billboard): string {
   const parts: string[] = [
     item.id,
     item.title,
+    item.description ?? '',
     item.type,
     item.address,
     String(item.lat),

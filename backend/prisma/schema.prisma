@@ -69,6 +69,7 @@ model AdSurface {
   companyId    String
   company      Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
   title        String
+  description  String?
   type         SurfaceType
   address      String
   lat          Decimal       @db.Decimal(9, 6)

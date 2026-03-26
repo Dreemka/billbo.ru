@@ -1,6 +1,5 @@
 import {
   Alert,
-  Badge,
   Button,
   Card,
   Col,
@@ -9,6 +8,7 @@ import {
   Dropdown,
   Input,
   Modal,
+  Popover,
   Radio,
   Row,
   Select,
@@ -20,8 +20,11 @@ import {
 import {
   AppstoreOutlined,
   CalendarOutlined,
+  CheckCircleOutlined,
+  CloseCircleOutlined,
   EllipsisOutlined,
-  FileImageOutlined,
+  FilterFilled,
+  FilterOutlined,
   GlobalOutlined,
   HeartFilled,
   HeartOutlined,
@@ -31,7 +34,9 @@ import {
 import { notifyError, notifySuccess } from '../../shared/lib/notify'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
+import { BillboardPhotoIconButton } from '../../shared/ui/BillboardPhotoIconButton'
 import { ExternalImagePreview } from '../../shared/ui/ExternalImagePreview'
+import { getPhotoUrl } from '../../shared/lib/photoLinkBehavior'
 import { YandexMap } from './YandexMap'
 import { favoritesApi } from '../../shared/api/services'
 import { filterBillboardsBySearchQuery } from '../../shared/lib/filterBillboardsBySearchQuery'
@@ -127,6 +132,9 @@ export const MarketplacePage = observer(function MarketplacePage() {
     !!priceExtent &&
     (committedPriceRange[0] > priceExtent.min || committedPriceRange[1] < priceExtent.max)
 
+  const filtersPopoverActive =
+    !!companyFilterId || isPriceFilterActive || priceSort !== 'none'
+
   const itemsAfterCompanyFilter = useMemo(() => {
     if (!companyFilterId) return itemsToShow
     return itemsToShow.filter((b) => b.companyId === companyFilterId)
@@ -205,69 +213,107 @@ export const MarketplacePage = observer(function MarketplacePage() {
             onChange={(e) => setBillboardSearchQuery(e.target.value)}
             style={{ width: 'min(100%, 360px)' }}
           />
-          <Select
-            allowClear
-            placeholder="Все компании"
-            style={{ minWidth: 200, width: 'min(100%, 280px)' }}
-            value={companyFilterId ?? undefined}
-            onChange={(v) => setCompanyFilterId(v ?? null)}
-            options={companyOptions}
-            showSearch
-            optionFilterProp="label"
-            disabled={!companyOptions.length}
-          />
-          {priceExtent && priceExtent.min < priceExtent.max ? (
-            <div style={{ minWidth: 200, flex: '1 1 240px', maxWidth: 400 }}>
-              <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 4 }}>
-                Цена (₽/мес.): {sliderDisplayValue[0].toLocaleString('ru-RU')} —{' '}
-                {sliderDisplayValue[1].toLocaleString('ru-RU')}
-              </Typography.Text>
-              <Slider
-                range
-                min={priceExtent.min}
-                max={priceExtent.max}
-                value={sliderDisplayValue}
-                onChange={(v) => setPriceSliderDraft(v as [number, number])}
-                onAfterChange={(v) => {
-                  setPriceSliderDraft(null)
-                  if (!priceExtent) return
-                  const tuple = v as [number, number]
-                  const [lo, hi] = tuple
-                  if (lo <= priceExtent.min && hi >= priceExtent.max) {
-                    setPriceRange(null)
-                  } else {
-                    setPriceRange(tuple)
-                  }
-                }}
-                tooltip={{ formatter: (v) => (v != null ? `${Number(v).toLocaleString('ru-RU')} ₽` : '') }}
-              />
-            </div>
-          ) : priceExtent ? (
-            <Typography.Text type="secondary" style={{ whiteSpace: 'nowrap' }}>
-              Цена (₽/мес.): {priceExtent.min.toLocaleString('ru-RU')}
-            </Typography.Text>
-          ) : null}
-          <Select
-            value={priceSort}
-            onChange={(v) => setPriceSort(v)}
-            style={{ minWidth: 200, width: 'min(100%, 240px)' }}
-            options={[
-              { value: 'none', label: 'Сортировка по цене' },
-              { value: 'asc', label: 'Цена: по возрастанию' },
-              { value: 'desc', label: 'Цена: по убыванию' },
-            ]}
-          />
         </Space>
 
-        <Button
-          type="text"
-          className="app-map-focus-btn"
-          icon={
-            onlyFavorites ? <HeartFilled style={{ color: 'var(--color-focus)' }} /> : <HeartOutlined />
-          }
-          aria-label="Показать избранное"
-          onClick={() => setOnlyFavorites((v) => !v)}
-        />
+        <Space size={4} align="center">
+          <Popover
+            trigger="click"
+            placement="bottomRight"
+            title="Фильтры и сортировка"
+            content={
+              <div style={{ width: 300, maxWidth: 'min(92vw, 360px)' }}>
+                <Space orientation="vertical" size={14} style={{ width: '100%' }}>
+                  <div style={{ width: '100%' }}>
+                    <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 6 }}>
+                      Компания
+                    </Typography.Text>
+                    <Select
+                      allowClear
+                      placeholder="Все компании"
+                      style={{ width: '100%' }}
+                      value={companyFilterId ?? undefined}
+                      onChange={(v) => setCompanyFilterId(v ?? null)}
+                      options={companyOptions}
+                      showSearch
+                      optionFilterProp="label"
+                      disabled={!companyOptions.length}
+                      getPopupContainer={(n) => n.parentElement ?? document.body}
+                    />
+                  </div>
+                  {priceExtent && priceExtent.min < priceExtent.max ? (
+                    <div>
+                      <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 4 }}>
+                        Цена (₽/мес.): {sliderDisplayValue[0].toLocaleString('ru-RU')} —{' '}
+                        {sliderDisplayValue[1].toLocaleString('ru-RU')}
+                      </Typography.Text>
+                      <Slider
+                        range
+                        min={priceExtent.min}
+                        max={priceExtent.max}
+                        value={sliderDisplayValue}
+                        onChange={(v) => setPriceSliderDraft(v as [number, number])}
+                        onAfterChange={(v) => {
+                          setPriceSliderDraft(null)
+                          if (!priceExtent) return
+                          const tuple = v as [number, number]
+                          const [lo, hi] = tuple
+                          if (lo <= priceExtent.min && hi >= priceExtent.max) {
+                            setPriceRange(null)
+                          } else {
+                            setPriceRange(tuple)
+                          }
+                        }}
+                        tooltip={{ formatter: (v) => (v != null ? `${Number(v).toLocaleString('ru-RU')} ₽` : '') }}
+                      />
+                    </div>
+                  ) : priceExtent ? (
+                    <Typography.Text type="secondary">
+                      Цена (₽/мес.): {priceExtent.min.toLocaleString('ru-RU')}
+                    </Typography.Text>
+                  ) : null}
+                  <div style={{ width: '100%' }}>
+                    <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 6 }}>
+                      Сортировка по цене
+                    </Typography.Text>
+                    <Select
+                      value={priceSort}
+                      onChange={(v) => setPriceSort(v)}
+                      style={{ width: '100%' }}
+                      options={[
+                        { value: 'none', label: 'Без сортировки' },
+                        { value: 'asc', label: 'По возрастанию' },
+                        { value: 'desc', label: 'По убыванию' },
+                      ]}
+                      getPopupContainer={(n) => n.parentElement ?? document.body}
+                    />
+                  </div>
+                </Space>
+              </div>
+            }
+          >
+            <Button
+              type="text"
+              className="app-map-focus-btn"
+              icon={
+                filtersPopoverActive ? (
+                  <FilterFilled style={{ color: 'var(--color-focus)' }} />
+                ) : (
+                  <FilterOutlined />
+                )
+              }
+              aria-label="Фильтры и сортировка"
+            />
+          </Popover>
+          <Button
+            type="text"
+            className="app-map-focus-btn"
+            icon={
+              onlyFavorites ? <HeartFilled style={{ color: 'var(--color-focus)' }} /> : <HeartOutlined />
+            }
+            aria-label="Показать избранное"
+            onClick={() => setOnlyFavorites((v) => !v)}
+          />
+        </Space>
       </div>
 
       {(billboardSearchQuery.trim() || companyFilterId || isPriceFilterActive) &&
@@ -283,6 +329,10 @@ export const MarketplacePage = observer(function MarketplacePage() {
             <Col key={item.id} xs={24} sm={12} md={12} lg={8} xl={8}>
               <Card className="app-billboard-card">
                 <div style={{ position: 'absolute', right: 20, top: 20, display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                  <BillboardPhotoIconButton
+                    url={getPhotoUrl(item.extraFields as Record<string, unknown>)}
+                    onOpenModal={setPhotoModalUrl}
+                  />
                   <Button
                     type="text"
                     className="app-map-focus-btn"
@@ -325,6 +375,12 @@ export const MarketplacePage = observer(function MarketplacePage() {
                   {item.title}
                 </Typography.Title>
 
+                {item.description?.trim() ? (
+                  <Typography.Paragraph style={{ marginBottom: 8, whiteSpace: 'pre-wrap' }}>
+                    {item.description.trim()}
+                  </Typography.Paragraph>
+                ) : null}
+
                 <Typography.Paragraph>{item.address}</Typography.Paragraph>
                 <Typography.Paragraph>
                   {item.type} · {item.size}
@@ -345,18 +401,35 @@ export const MarketplacePage = observer(function MarketplacePage() {
                 const statusAvailable = parseStatusToAvailable(item.extraFields?.Status)
                 const isAvailable = statusAvailable ?? item.available
                 return (
-                  <div style={{ marginBottom: 12 }}>
-                    <Badge
-                      status={isAvailable ? 'success' : 'error'}
-                      text={isAvailable ? 'Доступен' : 'Недоступен'}
-                    />
+                  <div style={{ marginBottom: 12, fontSize: 18, lineHeight: 1 }}>
+                    {isAvailable ? (
+                      <CheckCircleOutlined style={{ color: '#52c41a' }} aria-label="Доступен" />
+                    ) : (
+                      <CloseCircleOutlined style={{ color: '#ff4d4f' }} aria-label="Недоступен" />
+                    )}
                   </div>
                 )
               })()}
 
                 {activeExtraBillboardId === item.id ? null : <Divider className="marketplace-status-divider" />}
 
-              {item.extraFields && Object.keys(item.extraFields).length > 0 ? (
+              {(() => {
+                const detailEntries = Object.entries(item.extraFields ?? {}).filter(
+                  ([k]) =>
+                    ![
+                      'Gid',
+                      'Format',
+                      'Dinamic',
+                      'address',
+                      'Price',
+                      'available',
+                      'Coordinate',
+                      'Photo',
+                      'Status',
+                    ].includes(k),
+                )
+                if (!detailEntries.length) return null
+                return (
                   <Collapse
                     className="marketplace-extra-collapse"
                     activeKey={activeExtraBillboardId === item.id ? ['extra'] : []}
@@ -370,40 +443,21 @@ export const MarketplacePage = observer(function MarketplacePage() {
                         label: 'Подробнее',
                         children: (
                           <div>
-                            {Object.entries(item.extraFields)
-                              .filter(([k]) => !['Gid', 'Format', 'Dinamic', 'address', 'Price', 'available', 'Coordinate'].includes(k))
-                              .map(([k, v]) => {
-                                const formatted = formatExtraField(k, v)
-                                const isPhoto = k === 'Photo'
-                                const url = isPhoto ? (v == null ? '' : String(v).trim()) : ''
-                                if (isPhoto) {
-                                  return (
-                                    <Typography.Paragraph key={k} style={{ margin: '0 0 5px 0' }}>
-                                      <Button
-                                        type="text"
-                                        icon={<FileImageOutlined />}
-                                        disabled={!url}
-                                        aria-label={url ? 'Открыть изображение' : 'Нет изображения'}
-                                        onClick={() => {
-                                          if (!url) return
-                                          setPhotoModalUrl(url)
-                                        }}
-                                      />
-                                    </Typography.Paragraph>
-                                  )
-                                }
-                                return (
-                                  <Typography.Paragraph key={k} style={{ margin: '0 0 5px 0' }}>
-                                    {formatted.label}: {formatted.value}
-                                  </Typography.Paragraph>
-                                )
-                              })}
+                            {detailEntries.map(([k, v]) => {
+                              const formatted = formatExtraField(k, v)
+                              return (
+                                <Typography.Paragraph key={k} style={{ margin: '0 0 5px 0' }}>
+                                  {formatted.label}: {formatted.value}
+                                </Typography.Paragraph>
+                              )
+                            })}
                           </div>
                         ),
                       },
                     ]}
                   />
-                ) : null}
+                )
+              })()}
 
                 <Space orientation="vertical" size={5}>
                   <Button
@@ -456,6 +510,13 @@ export const MarketplacePage = observer(function MarketplacePage() {
                 </div>
               ),
             },
+            {
+              title: 'Описание',
+              key: 'description',
+              width: 320,
+              ellipsis: true,
+              render: (_value, item) => item.description?.trim() || '—',
+            },
             { title: 'Адрес', dataIndex: 'address', key: 'address' },
             {
               title: 'Цена',
@@ -470,21 +531,54 @@ export const MarketplacePage = observer(function MarketplacePage() {
               render: (_value, item) => item.companyName?.trim() || '—',
             },
             {
-              title: 'Статус',
-              key: 'status',
+              title: 'Фото',
+              key: 'photo',
+              width: 72,
+              align: 'center' as const,
               render: (_value, item) => (
-                <Badge
-                  status={(parseStatusToAvailable(item.extraFields?.Status) ?? item.available) ? 'success' : 'error'}
-                  text={(parseStatusToAvailable(item.extraFields?.Status) ?? item.available) ? 'Доступен' : 'Недоступен'}
+                <BillboardPhotoIconButton
+                  url={getPhotoUrl(item.extraFields as Record<string, unknown>)}
+                  onOpenModal={setPhotoModalUrl}
                 />
               ),
             },
             {
-              title: 'Подробнее',
+              title: 'Статус',
+              key: 'status',
+              width: 120,
+              align: 'center' as const,
+              render: (_value, item) => {
+                const ok = parseStatusToAvailable(item.extraFields?.Status) ?? item.available
+                return (
+                  <span style={{ fontSize: 18 }}>
+                    {ok ? (
+                      <CheckCircleOutlined style={{ color: '#52c41a' }} aria-label="Доступен" />
+                    ) : (
+                      <CloseCircleOutlined style={{ color: '#ff4d4f' }} aria-label="Недоступен" />
+                    )}
+                  </span>
+                )
+              },
+            },
+            {
+              title: 'Инфо',
               key: 'details',
+              width: 72,
+              align: 'center' as const,
               render: (_value, item) => {
                 const extraEntries = Object.entries(item.extraFields ?? {}).filter(
-                  ([k]) => !['Gid', 'Format', 'Dinamic', 'address', 'Price', 'available', 'Coordinate'].includes(k),
+                  ([k]) =>
+                    ![
+                      'Gid',
+                      'Format',
+                      'Dinamic',
+                      'address',
+                      'Price',
+                      'available',
+                      'Coordinate',
+                      'Photo',
+                      'Status',
+                    ].includes(k),
                 )
 
                 const hasExtra = extraEntries.length > 0
@@ -502,24 +596,6 @@ export const MarketplacePage = observer(function MarketplacePage() {
                               <div>
                                 {extraEntries.map(([k, v]) => {
                                   const formatted = formatExtraField(k, v)
-                                  const isPhoto = k === 'Photo'
-                                  const url = isPhoto ? (v == null ? '' : String(v).trim()) : ''
-                                  if (isPhoto) {
-                                    return (
-                                      <Typography.Paragraph key={k} style={{ margin: '0 0 6px 0', fontSize: 12, color: 'rgba(0,0,0,0.85)' }}>
-                                        <Button
-                                          type="text"
-                                          icon={<FileImageOutlined />}
-                                          disabled={!url}
-                                          aria-label={url ? 'Открыть изображение' : 'Нет изображения'}
-                                          onClick={() => {
-                                            if (!url) return
-                                            setPhotoModalUrl(url)
-                                          }}
-                                        />
-                                      </Typography.Paragraph>
-                                    )
-                                  }
                                   return (
                                     <Typography.Paragraph
                                       key={k}
@@ -535,15 +611,17 @@ export const MarketplacePage = observer(function MarketplacePage() {
                         ],
                       }}
                     >
-                      <Button type="text" icon={<InfoCircleOutlined />} aria-label="Подробнее" />
+                      <Button type="text" icon={<InfoCircleOutlined />} aria-label="Инфо" />
                     </Dropdown>
                   </div>
                 )
               },
             },
             {
-              title: 'Действия',
+              title: '',
               key: 'actions',
+              width: 88,
+              align: 'center' as const,
               render: (_value, item) => (
                 (() => {
                   const statusAvailable = parseStatusToAvailable(item.extraFields?.Status)

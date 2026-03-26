@@ -8,6 +8,7 @@ import {
   Min,
   MinLength,
   IsOptional,
+  MaxLength,
 } from 'class-validator'
 
 export enum SurfaceTypeDto {
@@ -21,6 +22,11 @@ export class CreateAdSurfaceDto {
   @IsString()
   @MinLength(3)
   title!: string
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  description?: string
 
   @IsEnum(SurfaceTypeDto)
   type!: SurfaceTypeDto

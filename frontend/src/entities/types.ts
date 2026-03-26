@@ -9,6 +9,8 @@ export interface CompanyProfile {
 export interface Billboard {
   id: string
   title: string
+  /** Текстовое описание конструкции (основной блок карточки). */
+  description?: string
   type: 'billboard' | 'cityboard' | 'supersite' | 'digital'
   address: string
   lat: number
