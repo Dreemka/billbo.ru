@@ -9,7 +9,13 @@ import type {
   Role,
   UserProfile,
 } from '../../entities/types'
-import { clearAuthStorage, REFRESH_KEY, ROLE_KEY, TOKEN_KEY } from '../../shared/api/http'
+import {
+  clearAuthStorage,
+  getStoredAccessToken,
+  getStoredRole,
+  migrateLegacyAuthToCookies,
+  persistAuth,
+} from '../../shared/api/http'
 import { authApi, billboardsApi, bookingApi, companyApi, userApi } from '../../shared/api/services'
 import { mapBackendRoleToAppRole } from '../../shared/lib/mapBackendRole'
 import { getErrorMessage } from '../../shared/lib/getErrorMessage'
@@ -24,8 +30,9 @@ class SessionStore {
     makeAutoObservable(this)
 
     if (typeof window !== 'undefined') {
-      const storedToken = window.localStorage.getItem(TOKEN_KEY)
-      const storedRole = window.localStorage.getItem(ROLE_KEY)
+      migrateLegacyAuthToCookies()
+      const storedToken = getStoredAccessToken()
+      const storedRole = getStoredRole()
       if (storedToken && storedRole && (storedRole === 'admin' || storedRole === 'user')) {
         this.token = storedToken
         this.role = storedRole
@@ -52,10 +59,16 @@ class SessionStore {
     this.role = appRole
     this.authError = null
     if (typeof window !== 'undefined') {
-      window.localStorage.setItem(TOKEN_KEY, data.accessToken)
-      window.localStorage.setItem(ROLE_KEY, appRole)
-      window.localStorage.setItem(REFRESH_KEY, data.refreshToken)
+      persistAuth(data.accessToken, data.refreshToken, appRole)
     }
+  }
+
+  /** Синхронизация сессии после silent refresh в axios (cookie уже записаны в http). */
+  applyAuthTokens(data: AuthTokensResponse) {
+    const appRole = mapBackendRoleToAppRole(data.role)
+    this.token = data.accessToken
+    this.role = appRole
+    this.authError = null
   }
 
   async login(email: string, password: string): Promise<boolean> {
@@ -101,8 +114,7 @@ class SessionStore {
         this.token = dev.token
         this.role = dev.role
         if (typeof window !== 'undefined') {
-          window.localStorage.setItem(TOKEN_KEY, dev.token)
-          window.localStorage.setItem(ROLE_KEY, dev.role)
+          persistAuth(dev.token, null, dev.role)
         }
       }
       return true

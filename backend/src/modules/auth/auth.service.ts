@@ -83,7 +83,7 @@ export class AuthService {
       { sub: userId, role },
       {
         secret: this.config.get<string>('JWT_REFRESH_SECRET', 'dev-refresh-secret'),
-        expiresIn: '7d',
+        expiresIn: '1d',
       },
     )
     return { accessToken, refreshToken, role }

@@ -18,7 +18,7 @@ import { FavoritesModule } from './modules/favorites/favorites.module'
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
         secret: config.get<string>('JWT_ACCESS_SECRET', 'dev-secret'),
-        signOptions: { expiresIn: '15m' },
+        signOptions: { expiresIn: '1d' },
       }),
     }),
     PrismaModule,

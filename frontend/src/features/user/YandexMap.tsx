@@ -49,6 +49,37 @@ function escapeHtml(text: string): string {
     .replace(/"/g, '&quot;')
 }
 
+/** Временно скрываем владельца/компанию в балуне карты (по запросу). */
+const SHOW_MAP_BALLOON_COMPANY = false
+
+function buildBillboardBalloonHtml(item: Billboard): string {
+  const addressEsc = escapeHtml(item.address)
+  const priceStr = `${item.pricePerWeek.toLocaleString('ru-RU')} руб / месяц`
+
+  const sideRaw = item.extraFields?.Side
+  const sideStr =
+    sideRaw != null && String(sideRaw).trim() ? escapeHtml(String(sideRaw).trim()) : '—'
+
+  const statusAvailable = parseStatusToAvailable(item.extraFields?.Status)
+  const isAvailable = statusAvailable ?? item.available
+  const statusStr = isAvailable ? 'Доступен' : 'Недоступен'
+
+  const gid = item.extraFields?.Gid
+  const articleText =
+    gid != null && String(gid).trim() ? String(gid).trim() : item.title
+  const articleEsc = escapeHtml(articleText)
+
+  return [
+    '<div style="line-height:1.45;max-width:280px;">',
+    `<div style="margin-bottom:8px;"><strong style="font-size:14px;">${addressEsc}</strong></div>`,
+    `<div>Цена: ${priceStr}</div>`,
+    `<div>Сторона: ${sideStr}</div>`,
+    `<div>Статус: ${statusStr}</div>`,
+    `<div style="font-size:11px;color:rgba(0,0,0,0.55);margin-top:8px;">Артикул: ${articleEsc}</div>`,
+    '</div>',
+  ].join('')
+}
+
 export function YandexMap({
   items,
   focusBillboardId = null,
@@ -126,18 +157,14 @@ export function YandexMap({
     }
 
     items.forEach((item) => {
-      const titleEsc = escapeHtml(item.title)
-      const addressEsc = escapeHtml(item.address)
       const companyName = item.companyName?.trim()
-      const companyEsc = companyName ? escapeHtml(companyName) : ''
-      const companyBlock = companyEsc ? `Компания: ${companyEsc}<br/>` : ''
-      const hintContent = companyName ? `${companyName} — ${item.title}` : item.title
+      const hintContent = SHOW_MAP_BALLOON_COMPANY && companyName ? `${companyName} — ${item.title}` : item.title
 
       const placemark = new ymaps.Placemark(
         [item.lat, item.lng],
         {
           hintContent,
-          balloonContent: `<strong>${titleEsc}</strong><br/>${addressEsc}<br/>${companyBlock}Цена: ${item.pricePerWeek.toLocaleString('ru-RU')} руб / месяц`,
+          balloonContent: buildBillboardBalloonHtml(item),
         },
         {
           preset: getMarkerPreset(getBillboardAvailable(item), false),
