@@ -93,7 +93,7 @@ export const LoginPage = observer(function LoginPage() {
         <AuthCardHeader />
 
         {session.authError ? (
-          <Alert type="error" showIcon message={session.authError} style={{ marginBottom: 16 }} />
+          <Alert type="error" showIcon title={session.authError} style={{ marginBottom: 16 }} />
         ) : null}
 
         <Tabs

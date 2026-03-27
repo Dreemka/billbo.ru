@@ -354,7 +354,7 @@ export function SuperadminSuperadminsPage() {
           type="info"
           showIcon
           style={{ marginBottom: 16 }}
-          message="Нет учёток супер-админов"
+          title="Нет учёток супер-админов"
           description="Выполните prisma db seed или создайте пользователя с ролью «Супер-админ» через форму «Добавить пользователя»."
         />
       ) : null}

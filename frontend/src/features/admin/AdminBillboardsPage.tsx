@@ -26,7 +26,7 @@ import { ExternalImagePreview } from '../../shared/ui/ExternalImagePreview'
 import { YandexMap } from '../user/YandexMap'
 import { filterBillboardsBySearchQuery } from '../../shared/lib/filterBillboardsBySearchQuery'
 import { formatExtraField } from '../../shared/lib/formatExtraField'
-import { geocodeAddressToLatLng } from '../../shared/lib/yandexGeocode'
+import { geocodeAddressToLatLng, reverseGeocodeLatLngToAddress } from '../../shared/lib/yandexGeocode'
 import { getPhotoUrl } from '../../shared/lib/photoLinkBehavior'
 import { getYandexMapsApiKey } from '../../shared/lib/yandexMapsLoader'
 import { observer } from 'mobx-react-lite'
@@ -223,18 +223,25 @@ export const AdminBillboardsPage = observer(function AdminBillboardsPage() {
 
   async function saveEdit(item: Billboard) {
     const title = editTitleDraft.trim()
-    const address = editAddressDraft.trim()
+    let address = editAddressDraft.trim()
     const size = editSizeDraft.trim()
 
     const isValid =
       title.length > 0 &&
-      address.length > 0 &&
       size.length > 0 &&
       Number.isFinite(editLatDraft) &&
       Number.isFinite(editLngDraft) &&
       editPriceDraft >= 0
 
     if (!isValid) return
+
+    if (!address && yandexKey) {
+      try {
+        address = (await reverseGeocodeLatLngToAddress(editLatDraft, editLngDraft, yandexKey)).trim()
+      } catch {
+        // можно сохранить без адреса
+      }
+    }
 
     const nextExtraFields: Record<string, unknown> = { ...(item.extraFields ?? {}) } as Record<string, unknown>
 
@@ -277,15 +284,23 @@ export const AdminBillboardsPage = observer(function AdminBillboardsPage() {
 
   async function submitMapPickDraft() {
     const title = mapPickDraft.title.trim()
-    const address = mapPickDraft.address.trim()
+    let address = mapPickDraft.address.trim()
     const size = mapPickDraft.size.trim()
-    if (!title || !address || !size || !mapPickDraft.pricePerWeek) {
-      notifyError('Ошибка', 'Укажите заголовок, адрес, размер и цену за неделю.')
+    if (!title || !size || !mapPickDraft.pricePerWeek) {
+      notifyError('Ошибка', 'Укажите заголовок, размер и цену за неделю.')
       return
     }
     if (!Number.isFinite(mapPickDraft.lat) || !Number.isFinite(mapPickDraft.lng)) {
       notifyError('Ошибка', 'Некорректные координаты.')
       return
+    }
+
+    if (!address && yandexKey) {
+      try {
+        address = (await reverseGeocodeLatLngToAddress(mapPickDraft.lat, mapPickDraft.lng, yandexKey)).trim()
+      } catch {
+        // можно сохранить без адреса
+      }
     }
 
     const extraFields: Record<string, unknown> = {
@@ -363,12 +378,65 @@ export const AdminBillboardsPage = observer(function AdminBillboardsPage() {
     AdditionalInstallPrice: '',
   })
 
+  async function tryFillAddressFromCoords(lat: number, lng: number) {
+    if (!yandexKey) {
+      setGeoHint('Задайте VITE_YANDEX_MAPS_API_KEY — иначе адрес по координатам не подставить.')
+      return
+    }
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return
+    setGeocoding(true)
+    setGeoHint(null)
+    try {
+      const addr = await reverseGeocodeLatLngToAddress(lat, lng, yandexKey)
+      setForm((f) => ({ ...f, address: addr || '' }))
+      lastGeocodedAddressRef.current = addr
+      if (addr) {
+        setGeoHint('Адрес подставлен по координатам')
+      } else {
+        setGeoHint('Адрес по координатам не найден — можно ввести вручную или оставить пустым')
+      }
+    } catch (e: unknown) {
+      setGeoHint(e instanceof Error ? e.message : 'Не удалось определить адрес')
+    } finally {
+      setGeocoding(false)
+    }
+  }
+
+  async function tryFillEditAddressFromCoords(lat: number, lng: number) {
+    if (!yandexKey) return
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return
+    setGeocoding(true)
+    try {
+      const addr = await reverseGeocodeLatLngToAddress(lat, lng, yandexKey)
+      setEditAddressDraft(addr || '')
+    } catch {
+      // ignore
+    } finally {
+      setGeocoding(false)
+    }
+  }
+
+  async function tryFillMapPickAddressFromCoords(lat: number, lng: number) {
+    if (!yandexKey) return
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return
+    setGeocoding(true)
+    try {
+      const addr = await reverseGeocodeLatLngToAddress(lat, lng, yandexKey)
+      setMapPickDraft((d) => ({ ...d, address: addr || '' }))
+    } catch {
+      // ignore
+    } finally {
+      setGeocoding(false)
+    }
+  }
+
   function applyParsedCoords(text: string): boolean {
     const parsed = tryParseLatLngFromText(text)
     if (!parsed) return false
     setForm((f) => ({ ...f, lat: parsed.lat, lng: parsed.lng }))
     setCoordsPasteDraft('')
     setGeoHint(null)
+    void tryFillAddressFromCoords(parsed.lat, parsed.lng)
     return true
   }
 
@@ -660,13 +728,13 @@ export const AdminBillboardsPage = observer(function AdminBillboardsPage() {
               <Alert
                 type="success"
                 showIcon
-                message={`Распознано строк: ${csvSurfaces.length}`}
+                title={`Распознано строк: ${csvSurfaces.length}`}
                 style={{ width: '100%' }}
               />
             ) : null}
 
             {csvError ? (
-              <Alert type="error" showIcon message={csvError} style={{ width: '100%' }} />
+              <Alert type="error" showIcon title={csvError} style={{ width: '100%' }} />
             ) : null}
 
             {/* Подтверждение импорта — одна строка */}
@@ -749,7 +817,7 @@ export const AdminBillboardsPage = observer(function AdminBillboardsPage() {
             ) : geoHint ? (
               <Typography.Text
                 type={
-                  geoHint.includes('обновлены')
+                  geoHint.includes('обновлены') || geoHint.includes('подставлен')
                     ? 'success'
                     : geoHint.includes('VITE_YANDEX') || geoHint.includes('подлиннее')
                       ? 'warning'
@@ -761,7 +829,8 @@ export const AdminBillboardsPage = observer(function AdminBillboardsPage() {
               </Typography.Text>
             ) : (
               <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                При уходе с поля адреса координаты подставятся автоматически (нужен ключ API Яндекс.Карт).
+                Необязательно. Если адрес указан — при уходе с поля подставятся координаты. При изменении координат
+                (вставка строки или уход с широты/долготы) адрес обновится по новым точкам (нужен ключ API Яндекс.Карт).
               </Typography.Text>
             )
           }
@@ -776,7 +845,7 @@ export const AdminBillboardsPage = observer(function AdminBillboardsPage() {
                 }
               }}
               onBlur={() => void resolveCoordsFromAddress(form.address)}
-              placeholder="Например: Москва, Ленинский проспект, 1"
+              placeholder="Необязательно — например: Москва, Ленинский проспект, 1"
               disabled={!canEdit}
               style={{ flex: 1 }}
             />
@@ -835,6 +904,7 @@ export const AdminBillboardsPage = observer(function AdminBillboardsPage() {
             <InputNumber
               value={form.lat}
               onChange={(value) => setForm({ ...form, lat: value ?? 0 })}
+              onBlur={() => void tryFillAddressFromCoords(form.lat, form.lng)}
               disabled={!canEdit}
               style={{ width: '100%' }}
             />
@@ -843,6 +913,7 @@ export const AdminBillboardsPage = observer(function AdminBillboardsPage() {
             <InputNumber
               value={form.lng}
               onChange={(value) => setForm({ ...form, lng: value ?? 0 })}
+              onBlur={() => void tryFillAddressFromCoords(form.lat, form.lng)}
               disabled={!canEdit}
               style={{ width: '100%' }}
             />
@@ -930,7 +1001,6 @@ export const AdminBillboardsPage = observer(function AdminBillboardsPage() {
               !canEdit ||
               session.isLoading ||
               !form.title ||
-              !form.address ||
               !form.pricePerWeek ||
               billboards.isSaving
             }
@@ -1244,6 +1314,7 @@ export const AdminBillboardsPage = observer(function AdminBillboardsPage() {
                             placeholder="Широта"
                             value={editLatDraft}
                             onChange={(v) => setEditLatDraft(v ?? 0)}
+                            onBlur={() => void tryFillEditAddressFromCoords(editLatDraft, editLngDraft)}
                             disabled={!canEdit || billboards.isSaving || session.isLoading}
                             style={{ flex: 1 }}
                           />
@@ -1251,6 +1322,7 @@ export const AdminBillboardsPage = observer(function AdminBillboardsPage() {
                             placeholder="Долгота"
                             value={editLngDraft}
                             onChange={(v) => setEditLngDraft(v ?? 0)}
+                            onBlur={() => void tryFillEditAddressFromCoords(editLatDraft, editLngDraft)}
                             disabled={!canEdit || billboards.isSaving || session.isLoading}
                             style={{ flex: 1 }}
                           />
@@ -1443,6 +1515,7 @@ export const AdminBillboardsPage = observer(function AdminBillboardsPage() {
                             placeholder="Широта"
                             value={editLatDraft}
                             onChange={(v) => setEditLatDraft(v ?? 0)}
+                            onBlur={() => void tryFillEditAddressFromCoords(editLatDraft, editLngDraft)}
                             disabled={!canEdit || billboards.isSaving || session.isLoading}
                             style={{ width: '50%' }}
                           />
@@ -1450,6 +1523,7 @@ export const AdminBillboardsPage = observer(function AdminBillboardsPage() {
                             placeholder="Долгота"
                             value={editLngDraft}
                             onChange={(v) => setEditLngDraft(v ?? 0)}
+                            onBlur={() => void tryFillEditAddressFromCoords(editLatDraft, editLngDraft)}
                             disabled={!canEdit || billboards.isSaving || session.isLoading}
                             style={{ width: '50%' }}
                           />
@@ -1499,7 +1573,7 @@ export const AdminBillboardsPage = observer(function AdminBillboardsPage() {
                         style={{ minWidth: 240 }}
                       />
                     ) : (
-                      <span>{item.address}</span>
+                      <span>{item.address?.trim() || '—'}</span>
                     ),
                 },
                 {
@@ -1742,7 +1816,8 @@ export const AdminBillboardsPage = observer(function AdminBillboardsPage() {
       >
         <Space orientation="vertical" size={10} style={{ width: '100%' }}>
           <Typography.Paragraph type="secondary" style={{ marginBottom: 0, fontSize: 12 }}>
-            Адрес подставлен по координатам клика (можно исправить). Дозаполните поля и сохраните.
+            Координаты с клика по карте; адрес, если есть, подставляется автоматически. Поле адреса необязательно — при
+            сохранении без адреса он попробует определиться по координатам. Дозаполните поля и сохраните.
           </Typography.Paragraph>
           <Input
             placeholder="Заголовок (Gid / название)"
@@ -1776,7 +1851,7 @@ export const AdminBillboardsPage = observer(function AdminBillboardsPage() {
             disabled={!canEdit || billboards.isSaving}
           />
           <Input
-            placeholder="Адрес"
+            placeholder="Адрес (необязательно; при уходе с координат подставится)"
             value={mapPickDraft.address}
             onChange={(e) => setMapPickDraft((d) => ({ ...d, address: e.target.value }))}
             disabled={!canEdit || billboards.isSaving}
@@ -1786,6 +1861,7 @@ export const AdminBillboardsPage = observer(function AdminBillboardsPage() {
               placeholder="Широта"
               value={mapPickDraft.lat}
               onChange={(v) => setMapPickDraft((d) => ({ ...d, lat: v ?? d.lat }))}
+              onBlur={() => void tryFillMapPickAddressFromCoords(mapPickDraft.lat, mapPickDraft.lng)}
               disabled={!canEdit || billboards.isSaving}
               style={{ width: '50%' }}
             />
@@ -1793,6 +1869,7 @@ export const AdminBillboardsPage = observer(function AdminBillboardsPage() {
               placeholder="Долгота"
               value={mapPickDraft.lng}
               onChange={(v) => setMapPickDraft((d) => ({ ...d, lng: v ?? d.lng }))}
+              onBlur={() => void tryFillMapPickAddressFromCoords(mapPickDraft.lat, mapPickDraft.lng)}
               disabled={!canEdit || billboards.isSaving}
               style={{ width: '50%' }}
             />

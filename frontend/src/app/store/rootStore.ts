@@ -342,6 +342,24 @@ class BillboardsStore {
       })
     }
   }
+
+  async release(id: string) {
+    this.lastError = null
+    let ok = false
+    try {
+      await bookingApi.cancel({ billboardId: id })
+      ok = true
+    } catch (error) {
+      console.error('Billboards release failed', error)
+      runInAction(() => {
+        this.lastError = getErrorMessage(error, 'Не удалось отменить бронирование.')
+      })
+    } finally {
+      runInAction(() => {
+        if (ok) this.items = this.items.map((item) => (item.id === id ? { ...item, available: true } : item))
+      })
+    }
+  }
 }
 
 class UserStore {
@@ -352,6 +370,8 @@ class UserStore {
   lastError: string | null = null
   isProfileLoaded = false
   isWalletLoaded = false
+  /** Только для loadWallet — не блокируем loadProfile и наоборот. */
+  private walletLoadInProgress = false
 
   constructor() {
     makeAutoObservable(this)
@@ -438,11 +458,17 @@ class UserStore {
     }
   }
 
-  async loadWallet() {
-    if (this.isWalletLoaded || this.isLoading) {
+  /**
+   * @param force — с сервера заново (нужно при открытии страницы «Кошелек» после операций в других разделах).
+   */
+  async loadWallet(force = false) {
+    if (!force && this.isWalletLoaded) {
       return
     }
-    this.isLoading = true
+    if (this.walletLoadInProgress) {
+      return
+    }
+    this.walletLoadInProgress = true
     this.lastError = null
     try {
       const response = await userApi.getWallet()
@@ -457,7 +483,7 @@ class UserStore {
       })
     } finally {
       runInAction(() => {
-        this.isLoading = false
+        this.walletLoadInProgress = false
       })
     }
   }
@@ -468,6 +494,17 @@ class UserStore {
     }
     this.walletBalance -= amount
     return true
+  }
+
+  /** Локальная отмена списания при отмене бронирования или ошибке после оплаты. */
+  refund(amount: number) {
+    this.walletBalance += amount
+  }
+
+  /** Сброс при выходе из аккаунта (в т.ч. in-flight загрузка кошелька). */
+  resetWalletGate() {
+    this.isWalletLoaded = false
+    this.walletLoadInProgress = false
   }
 }
 
@@ -481,7 +518,7 @@ class RootStore {
     this.session = new SessionStore(() => {
       this.company.isProfileLoaded = false
       this.user.isProfileLoaded = false
-      this.user.isWalletLoaded = false
+      this.user.resetWalletGate()
       this.billboards.isLoaded = false
       this.billboards.listSource = 'catalog'
       this.company.lastError = null

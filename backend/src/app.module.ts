@@ -7,6 +7,7 @@ import { UsersModule } from './modules/users/users.module'
 import { CompaniesModule } from './modules/companies/companies.module'
 import { AdSurfacesModule } from './modules/ad-surfaces/ad-surfaces.module'
 import { PrismaModule } from './prisma/prisma.module'
+import { CompanyVerifiedGuard } from './common/auth/company-verified.guard'
 import { JwtAuthGuard } from './common/auth/jwt-auth.guard'
 import { FavoritesModule } from './modules/favorites/favorites.module'
 import { SuperadminModule } from './modules/superadmin/superadmin.module'
@@ -34,6 +35,10 @@ import { SuperadminModule } from './modules/superadmin/superadmin.module'
     {
       provide: APP_GUARD,
       useClass: JwtAuthGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: CompanyVerifiedGuard,
     },
   ],
 })

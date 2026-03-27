@@ -1,9 +1,9 @@
-import { createBrowserRouter } from 'react-router-dom'
+import { createBrowserRouter, Navigate } from 'react-router-dom'
 import { AppLayout } from './layouts/AppLayout'
 import { AdminCompanyPage } from '../features/admin/AdminCompanyPage'
 import { AdminBillboardsPage } from '../features/admin/AdminBillboardsPage'
+import { AdminCompanyClientsPage } from '../features/admin/AdminCompanyClientsPage'
 import { UserProfilePage } from '../features/user/UserProfilePage'
-import { WalletPage } from '../features/user/WalletPage'
 import { MarketplacePage } from '../features/user/MarketplacePage'
 import { LoginPage } from '../features/auth/LoginPage'
 import { RoleGuard } from './router/RoleGuard'
@@ -45,6 +45,14 @@ export const router = createBrowserRouter([
         ),
       },
       {
+        path: '/admin/clients',
+        element: (
+          <RoleGuard role="admin">
+            <AdminCompanyClientsPage />
+          </RoleGuard>
+        ),
+      },
+      {
         path: '/superadmin/superadmins',
         element: (
           <SuperAdminGuard>
@@ -78,11 +86,7 @@ export const router = createBrowserRouter([
       },
       {
         path: '/user/wallet',
-        element: (
-          <RoleGuard role="user">
-            <WalletPage />
-          </RoleGuard>
-        ),
+        element: <Navigate to="/user/marketplace" replace />,
       },
       {
         path: '/user/marketplace',

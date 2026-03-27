@@ -1,3 +1,4 @@
+import { Transform } from 'class-transformer'
 import {
   IsBoolean,
   IsEnum,
@@ -31,8 +32,10 @@ export class CreateAdSurfaceDto {
   @IsEnum(SurfaceTypeDto)
   type!: SurfaceTypeDto
 
+  /** Можно оставить пустым и подставить позже (обратное геокодирование на фронте). */
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : ''))
   @IsString()
-  @MinLength(5)
+  @MaxLength(2000)
   address!: string
 
   @IsNumber()

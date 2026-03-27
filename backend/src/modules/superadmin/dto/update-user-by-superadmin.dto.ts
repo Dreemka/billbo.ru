@@ -1,5 +1,6 @@
 import { Transform } from 'class-transformer'
 import {
+  IsArray,
   IsBoolean,
   IsEmail,
   IsIn,
@@ -58,4 +59,14 @@ export class UpdateUserBySuperadminDto {
   @ValidateIf((o) => o.role === Role.COMPANY)
   @IsBoolean()
   companyIsVerified?: boolean
+
+  /**
+   * Только для role USER: id компаний, чьи билборды видит клиент в каталоге.
+   * Пустой массив — снять привязку (каталог всех компаний). Если поле не передано — не менять привязки.
+   */
+  @IsOptional()
+  @ValidateIf((o) => o.role === Role.USER)
+  @IsArray()
+  @IsString({ each: true })
+  visibleCompanyIds?: string[]
 }

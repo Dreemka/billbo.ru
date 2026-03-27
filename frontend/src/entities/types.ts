@@ -6,6 +6,16 @@ export interface CompanyProfile {
   description: string
 }
 
+/** GET /company/clients — только поля по бронированиям у этой компании */
+export interface CompanyBookingClientRow {
+  id: string
+  fullName: string
+  email: string
+  phone: string | null
+  /** Число активных бронирований у поверхностей этой компании */
+  bookingsWithCompany: number
+}
+
 export interface Billboard {
   id: string
   title: string
@@ -115,6 +125,11 @@ export interface SuperadminClientAccountRow {
   updatedAt: string
   wallet: { id: string; balance: number; createdAt: string; updatedAt: string } | null
   _count: { favorites: number; bookings: number }
+  /** Привязка к компаниям в каталоге; пусто — клиент видит все компании. */
+  visibleCatalogCompanies?: {
+    companyId: string
+    company: { id: string; name: string; city: string }
+  }[]
 }
 
 /** POST /superadmin/users */
@@ -150,4 +165,6 @@ export interface SuperadminUpdateUserPayload {
   companyCity?: string
   companyDescription?: string
   companyIsVerified?: boolean
+  /** Только для role USER: пустой массив — снять привязку (весь каталог). */
+  visibleCompanyIds?: string[]
 }

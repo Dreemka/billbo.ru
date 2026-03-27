@@ -37,6 +37,7 @@ export class AuthService {
             name: dto.companyName!,
             city: dto.companyCity!,
             description: '',
+            isVerified: true,
           },
         })
       }
@@ -54,6 +55,18 @@ export class AuthService {
     const isValid = await compare(dto.password, user.passwordHash)
     if (!isValid) throw new UnauthorizedException('Invalid credentials')
 
+    if (user.role === Role.COMPANY) {
+      const company = await this.prisma.company.findUnique({
+        where: { ownerUserId: user.id },
+        select: { isVerified: true },
+      })
+      if (!company?.isVerified) {
+        throw new UnauthorizedException(
+          'Компания не верифицирована. Вход недоступен. Обратитесь к администратору платформы.',
+        )
+      }
+    }
+
     return this.issueTokens(user.id, user.role)
   }
 
@@ -66,13 +79,25 @@ export class AuthService {
     }
   }
 
-  refresh(refreshToken: string) {
+  async refresh(refreshToken: string) {
     try {
       const payload = this.jwtService.verify(refreshToken, {
         secret: this.config.get<string>('JWT_REFRESH_SECRET', 'dev-refresh-secret'),
       }) as { sub: string; role: Role }
+
+      if (payload.role === Role.COMPANY) {
+        const company = await this.prisma.company.findUnique({
+          where: { ownerUserId: payload.sub },
+          select: { isVerified: true },
+        })
+        if (!company?.isVerified) {
+          throw new UnauthorizedException('Компания не верифицирована')
+        }
+      }
+
       return this.issueTokens(payload.sub, payload.role)
-    } catch {
+    } catch (e) {
+      if (e instanceof UnauthorizedException) throw e
       throw new UnauthorizedException('Invalid refresh token')
     }
   }

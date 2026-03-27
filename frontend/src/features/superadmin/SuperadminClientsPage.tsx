@@ -1,7 +1,7 @@
 import { CheckOutlined, CloseOutlined, EditOutlined } from '@ant-design/icons'
 import { Alert, Button, Input, Select, Space, Switch, Table, Typography } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 import type { SuperadminClientAccountRow, SuperadminUpdateUserPayload } from '../../entities/types'
 import { superadminApi } from '../../shared/api/services'
@@ -43,6 +43,15 @@ export function SuperadminClientsPage() {
   const [editCompanyCityDraft, setEditCompanyCityDraft] = useState('')
   const [editCompanyDescDraft, setEditCompanyDescDraft] = useState('')
   const [editCompanyVerifiedDraft, setEditCompanyVerifiedDraft] = useState(false)
+  const [editVisibleCompanyIds, setEditVisibleCompanyIds] = useState<string[]>([])
+  const [companyCatalogOptions, setCompanyCatalogOptions] = useState<{ id: string; name: string; city: string }[]>([])
+
+  useEffect(() => {
+    void superadminApi
+      .listCompanyCatalogOptions()
+      .then((res) => setCompanyCatalogOptions(res.data))
+      .catch((e) => console.error('Company options load failed', e))
+  }, [])
 
   function beginEdit(r: SuperadminClientAccountRow) {
     setEditingUserId(r.id)
@@ -56,11 +65,13 @@ export function SuperadminClientsPage() {
     setEditCompanyCityDraft('')
     setEditCompanyDescDraft('')
     setEditCompanyVerifiedDraft(false)
+    setEditVisibleCompanyIds((r.visibleCatalogCompanies ?? []).map((x) => x.companyId))
   }
 
   function cancelEdit() {
     setEditingUserId(null)
     setEditPasswordDraft('')
+    setEditVisibleCompanyIds([])
   }
 
   function buildPayload(): SuperadminUpdateUserPayload | null {
@@ -88,6 +99,9 @@ export function SuperadminClientsPage() {
       const d = editCompanyDescDraft.trim()
       if (d) payload.companyDescription = d
       payload.companyIsVerified = editCompanyVerifiedDraft
+    }
+    if (editRoleDraft === 'USER') {
+      payload.visibleCompanyIds = [...editVisibleCompanyIds]
     }
     return payload
   }
@@ -193,6 +207,37 @@ export function SuperadminClientsPage() {
           ) : (
             r.role
           ),
+      },
+      {
+        title: 'Привязка',
+        key: 'catalogCompanies',
+        width: 280,
+        ellipsis: !isEditing,
+        render: (_, r) => {
+          if (editingUserId === r.id && editRoleDraft === 'USER') {
+            return (
+              <Select
+                mode="multiple"
+                allowClear
+                placeholder="Все компании"
+                style={{ width: '100%', minWidth: 240 }}
+                value={editVisibleCompanyIds}
+                onChange={(v) => setEditVisibleCompanyIds(v)}
+                disabled={saving}
+                options={companyCatalogOptions.map((c) => ({
+                  value: c.id,
+                  label: `${c.name} (${c.city})`,
+                }))}
+              />
+            )
+          }
+          if (editingUserId === r.id) {
+            return <Typography.Text type="secondary">—</Typography.Text>
+          }
+          const list = r.visibleCatalogCompanies ?? []
+          if (list.length === 0) return 'Все компании'
+          return list.map((x) => x.company?.name ?? x.companyId).join(', ')
+        },
       },
       {
         title: 'Регистрация',
@@ -318,6 +363,8 @@ export function SuperadminClientsPage() {
       editCompanyCityDraft,
       editCompanyDescDraft,
       editCompanyVerifiedDraft,
+      editVisibleCompanyIds,
+      companyCatalogOptions,
       saving,
       isEditing,
     ],
@@ -353,7 +400,7 @@ export function SuperadminClientsPage() {
           type="info"
           showIcon
           style={{ marginBottom: 16 }}
-          message="Нет аккаунтов с ролью «Клиент»"
+          title="Нет аккаунтов с ролью «Клиент»"
           description="Супер-админы и компании отображаются в других разделах меню. Добавьте пользователя или зарегистрируйте клиента через форму регистрации."
         />
       ) : null}
@@ -362,7 +409,7 @@ export function SuperadminClientsPage() {
         loading={loading}
         columns={columns}
         dataSource={rows}
-        scroll={editingUserId ? { x: 'max-content' } : { x: 2200 }}
+        scroll={editingUserId ? { x: 'max-content' } : { x: 2600 }}
         pagination={{ pageSize: 20, showSizeChanger: true }}
         onRow={(record) => ({
           className: editingUserId === record.id ? 'admin-billboard-table-row--editing' : undefined,

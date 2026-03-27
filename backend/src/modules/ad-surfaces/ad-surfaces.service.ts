@@ -8,12 +8,49 @@ import { CreateAdSurfacesBulkDto } from './dto/create-ad-surfaces-bulk.dto'
 export class AdSurfacesService {
   constructor(private readonly prisma: PrismaService) {}
 
+  /** Каталог для клиентов и гостей: только верифицированные компании. */
   async listPublic() {
+    const rows = await this.prisma.adSurface.findMany({
+      where: { company: { isVerified: true } },
+      orderBy: { createdAt: 'desc' },
+      include: { company: { select: { id: true, name: true } } },
+    })
+    return rows.map((r) => this.mapRow(r))
+  }
+
+  /** Полный список для супер-админа (модерация, в т.ч. неверифицированные). */
+  async listAllForModeration() {
     const rows = await this.prisma.adSurface.findMany({
       orderBy: { createdAt: 'desc' },
       include: { company: { select: { id: true, name: true } } },
     })
     return rows.map((r) => this.mapRow(r))
+  }
+
+  /**
+   * Каталог для маркетплейса: гость и клиент без привязок — всё;
+   * клиент (USER) с записями UserVisibleCompany — только поверхности этих компаний.
+   */
+  async listPublicForViewer(viewer?: { sub: string; role: string }) {
+    if (viewer?.role === Role.USER && viewer.sub) {
+      const links = await this.prisma.userVisibleCompany.findMany({
+        where: { userId: viewer.sub },
+        select: { companyId: true },
+      })
+      if (links.length > 0) {
+        const companyIds = links.map((l) => l.companyId)
+        const rows = await this.prisma.adSurface.findMany({
+          where: {
+            companyId: { in: companyIds },
+            company: { isVerified: true },
+          },
+          orderBy: { createdAt: 'desc' },
+          include: { company: { select: { id: true, name: true } } },
+        })
+        return rows.map((r) => this.mapRow(r))
+      }
+    }
+    return this.listPublic()
   }
 
   /** Только конструкции компании владельца (по связи User → Company). */
@@ -44,6 +81,7 @@ export class AdSurfacesService {
         name: 'Local Company',
         city: 'Moscow',
         description: 'Local development company',
+        isVerified: true,
       },
     })
 
@@ -53,7 +91,7 @@ export class AdSurfacesService {
         title: dto.title,
         description: dto.description?.trim() || null,
         type: this.toPrismaType(dto.type),
-        address: dto.address,
+        address: dto.address ?? '',
         lat: dto.lat,
         lng: dto.lng,
         pricePerWeek: dto.pricePerWeek,
@@ -80,6 +118,7 @@ export class AdSurfacesService {
         name: 'Local Company',
         city: 'Moscow',
         description: 'Local development company',
+        isVerified: true,
       },
     })
 
@@ -121,7 +160,7 @@ export class AdSurfacesService {
         title: dto.title,
         description: dto.description?.trim() || null,
         type: this.toPrismaType(dto.type),
-        address: dto.address,
+        address: dto.address ?? '',
         lat: dto.lat,
         lng: dto.lng,
         pricePerWeek: dto.pricePerWeek,

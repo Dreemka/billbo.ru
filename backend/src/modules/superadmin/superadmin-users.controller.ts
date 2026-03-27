@@ -11,6 +11,12 @@ export class SuperadminUsersController {
 
   /** Статические пути `users/...` — до параметризованных `users/:id`. */
 
+  /** Справочник компаний для привязки клиента к каталогу (id + название). */
+  @Get('companies/options')
+  listCompanyOptionsForCatalog() {
+    return this.superadminUsers.listCompanyOptionsForCatalog()
+  }
+
   /** Все зарегистрированные аккаунты компаний (роль COMPANY). */
   @Get('users/companies')
   listCompanies() {

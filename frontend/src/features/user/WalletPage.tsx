@@ -11,7 +11,8 @@ export const WalletPage = observer(function WalletPage() {
 
   useEffect(() => {
     if (session.role !== 'user') return
-    void user.loadWallet()
+    /** С сервера при каждом заходе на страницу — баланс мог измениться (каталог, другая вкладка). */
+    void user.loadWallet(true)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session.role])
 

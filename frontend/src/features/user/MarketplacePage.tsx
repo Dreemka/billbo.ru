@@ -19,6 +19,8 @@ import {
 } from 'antd'
 import {
   AppstoreOutlined,
+  BookFilled,
+  BookOutlined,
   CalendarOutlined,
   CheckCircleOutlined,
   CloseCircleOutlined,
@@ -37,12 +39,12 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { BillboardPhotoIconButton } from '../../shared/ui/BillboardPhotoIconButton'
 import { ExternalImagePreview } from '../../shared/ui/ExternalImagePreview'
 import { YandexMap } from './YandexMap'
-import { favoritesApi } from '../../shared/api/services'
+import { bookingApi, favoritesApi } from '../../shared/api/services'
 import { filterBillboardsBySearchQuery } from '../../shared/lib/filterBillboardsBySearchQuery'
 import { formatExtraField } from '../../shared/lib/formatExtraField'
 import { getPhotoUrl } from '../../shared/lib/photoLinkBehavior'
 import { observer } from 'mobx-react-lite'
-import { parseStatusToAvailable } from '../../shared/lib/parseStatusToAvailable'
+import { effectiveBillboardAvailable } from '../../shared/lib/effectiveBillboardAvailable'
 import { useStore } from '../../app/store/rootStore'
 
 export const MarketplacePage = observer(function MarketplacePage() {
@@ -59,14 +61,16 @@ export const MarketplacePage = observer(function MarketplacePage() {
   const [priceSort, setPriceSort] = useState<'none' | 'asc' | 'desc'>('none')
   const [favoriteIds, setFavoriteIds] = useState<string[]>([])
   const [onlyFavorites, setOnlyFavorites] = useState(false)
+  const [onlyBooked, setOnlyBooked] = useState(false)
+  const [bookedBillboardIds, setBookedBillboardIds] = useState<string[]>([])
   const [activeExtraBillboardId, setActiveExtraBillboardId] = useState<string | null>(null)
   const [photoModalUrl, setPhotoModalUrl] = useState<string | null>(null)
 
   const favoriteIdSet = useMemo(() => new Set(favoriteIds), [favoriteIds])
+  const bookedBillboardIdSet = useMemo(() => new Set(bookedBillboardIds), [bookedBillboardIds])
 
   useEffect(() => {
     void billboards.load('catalog')
-    void user.loadWallet()
 
     void favoritesApi
       .getIds()
@@ -77,10 +81,25 @@ export const MarketplacePage = observer(function MarketplacePage() {
       })
   }, [billboards, user])
 
+  useEffect(() => {
+    if (session.role !== 'user') {
+      setBookedBillboardIds([])
+      return
+    }
+    void bookingApi
+      .listMine()
+      .then((res) => setBookedBillboardIds(res.data.billboardIds))
+      .catch((e) => {
+        console.error('Bookings mine load failed', e)
+      })
+  }, [session.role])
+
   const itemsToShow = useMemo(() => {
-    if (!onlyFavorites) return billboards.items
-    return billboards.items.filter((b) => favoriteIdSet.has(b.id))
-  }, [onlyFavorites, billboards.items, favoriteIdSet])
+    let list = billboards.items
+    if (onlyFavorites) list = list.filter((b) => favoriteIdSet.has(b.id))
+    if (onlyBooked) list = list.filter((b) => bookedBillboardIdSet.has(b.id))
+    return list
+  }, [onlyFavorites, onlyBooked, billboards.items, favoriteIdSet, bookedBillboardIdSet])
 
   const companyOptions = useMemo(() => {
     const m = new Map<string, string>()
@@ -162,9 +181,39 @@ export const MarketplacePage = observer(function MarketplacePage() {
 
   useEffect(() => {
     if (!mapFocusBillboardId) return
+    if (!onlyBooked) return
+    if (!bookedBillboardIdSet.has(mapFocusBillboardId)) setMapFocusBillboardId(null)
+  }, [onlyBooked, bookedBillboardIdSet, mapFocusBillboardId])
+
+  useEffect(() => {
+    if (!mapFocusBillboardId) return
     if (displayedBillboards.some((b) => b.id === mapFocusBillboardId)) return
     setMapFocusBillboardId(null)
   }, [displayedBillboards, mapFocusBillboardId])
+
+  async function reserveBillboard(item: (typeof billboards.items)[number]) {
+    await billboards.reserve(item.id)
+    if (billboards.lastError) {
+      notifyError('Ошибка бронирования', billboards.lastError)
+      setMessage(`Не удалось забронировать: ${billboards.lastError}`)
+      return
+    }
+    setBookedBillboardIds((prev) => (prev.includes(item.id) ? prev : [...prev, item.id]))
+    notifySuccess('Бронирование успешно', `Конструкция "${item.title}" забронирована`)
+    setMessage(`Конструкция "${item.title}" успешно забронирована.`)
+  }
+
+  async function cancelBillboardBooking(item: (typeof billboards.items)[number]) {
+    await billboards.release(item.id)
+    if (billboards.lastError) {
+      notifyError('Ошибка отмены', billboards.lastError)
+      setMessage(`Не удалось отменить бронирование: ${billboards.lastError}`)
+      return
+    }
+    setBookedBillboardIds((prev) => prev.filter((id) => id !== item.id))
+    notifySuccess('Бронирование отменено', `Конструкция "${item.title}" снова доступна в каталоге`)
+    setMessage(`Бронирование «${item.title}» отменено.`)
+  }
 
   return (
     <>
@@ -180,9 +229,9 @@ export const MarketplacePage = observer(function MarketplacePage() {
         </Card>
 
         <Card>
-      {message ? <Alert type="info" showIcon message={message} /> : null}
+      {message ? <Alert type="info" showIcon title={message} /> : null}
       {billboards.lastError ? (
-        <Alert type="error" showIcon message={billboards.lastError} style={{ marginTop: 12 }} />
+        <Alert type="error" showIcon title={billboards.lastError} style={{ marginTop: 12 }} />
       ) : null}
 
       <div
@@ -308,6 +357,15 @@ export const MarketplacePage = observer(function MarketplacePage() {
             type="text"
             className="app-map-focus-btn"
             icon={
+              onlyBooked ? <BookFilled style={{ color: 'var(--color-focus)' }} /> : <BookOutlined />
+            }
+            aria-label="Только забронированные мной"
+            onClick={() => setOnlyBooked((v) => !v)}
+          />
+          <Button
+            type="text"
+            className="app-map-focus-btn"
+            icon={
               onlyFavorites ? <HeartFilled style={{ color: 'var(--color-focus)' }} /> : <HeartOutlined />
             }
             aria-label="Показать избранное"
@@ -316,10 +374,11 @@ export const MarketplacePage = observer(function MarketplacePage() {
         </Space>
       </div>
 
-      {(billboardSearchQuery.trim() || companyFilterId || isPriceFilterActive) &&
+      {(billboardSearchQuery.trim() || companyFilterId || isPriceFilterActive || onlyBooked) &&
       displayedBillboards.length === 0 ? (
         <Typography.Paragraph type="secondary" style={{ marginTop: 16, marginBottom: 0 }}>
-          Ничего не найдено — измените поиск, фильтр компании, диапазон цены или сбросьте фильтры.
+          Ничего не найдено — измените поиск, фильтр компании, диапазон цены, режим «Только мои бронирования» или
+          сбросьте фильтры.
         </Typography.Paragraph>
       ) : null}
 
@@ -381,7 +440,7 @@ export const MarketplacePage = observer(function MarketplacePage() {
                   </Typography.Paragraph>
                 ) : null}
 
-                <Typography.Paragraph>{item.address}</Typography.Paragraph>
+                <Typography.Paragraph>{item.address?.trim() || '—'}</Typography.Paragraph>
                 <Typography.Paragraph>
                   {item.type} · {item.size}
                 </Typography.Paragraph>
@@ -398,8 +457,7 @@ export const MarketplacePage = observer(function MarketplacePage() {
                 </Typography.Paragraph>
 
               {(() => {
-                const statusAvailable = parseStatusToAvailable(item.extraFields?.Status)
-                const isAvailable = statusAvailable ?? item.available
+                const isAvailable = effectiveBillboardAvailable(item)
                 return (
                   <div style={{ marginBottom: 12, fontSize: 18, lineHeight: 1 }}>
                     {isAvailable ? (
@@ -460,31 +518,25 @@ export const MarketplacePage = observer(function MarketplacePage() {
               })()}
 
                 <Space orientation="vertical" size={5}>
-                  <Button
-                    type="primary"
-                    style={{ marginTop: 10 }}
-                    disabled={!canBuy || session.isLoading || !(() => {
-                      const statusAvailable = parseStatusToAvailable(item.extraFields?.Status)
-                      return (statusAvailable ?? item.available) === true
-                    })()}
-                    onClick={async () => {
-                      const ok = user.pay(item.pricePerWeek)
-                      if (!ok) {
-                        setMessage('Недостаточно средств в кошельке.')
-                        return
-                      }
-                      await billboards.reserve(item.id)
-                      if (billboards.lastError) {
-                        notifyError('Ошибка бронирования', billboards.lastError)
-                        setMessage(`Не удалось забронировать: ${billboards.lastError}`)
-                        return
-                      }
-                      notifySuccess('Бронирование успешно', `Конструкция "${item.title}" забронирована`)
-                      setMessage(`Конструкция "${item.title}" успешно забронирована.`)
-                    }}
-                  >
-                    Забронировать
-                  </Button>
+                  {bookedBillboardIdSet.has(item.id) ? (
+                    <Button
+                      danger
+                      style={{ marginTop: 10 }}
+                      disabled={!canBuy || session.isLoading}
+                      onClick={() => void cancelBillboardBooking(item)}
+                    >
+                      Отменить бронирование
+                    </Button>
+                  ) : (
+                    <Button
+                      type="primary"
+                      style={{ marginTop: 10 }}
+                      disabled={!canBuy || session.isLoading || !effectiveBillboardAvailable(item)}
+                      onClick={() => void reserveBillboard(item)}
+                    >
+                      Забронировать
+                    </Button>
+                  )}
                 </Space>
               </Card>
             </Col>
@@ -517,7 +569,11 @@ export const MarketplacePage = observer(function MarketplacePage() {
               ellipsis: true,
               render: (_value, item) => item.description?.trim() || '—',
             },
-            { title: 'Адрес', dataIndex: 'address', key: 'address' },
+            {
+              title: 'Адрес',
+              key: 'address',
+              render: (_value, item) => item.address?.trim() || '—',
+            },
             {
               title: 'Цена',
               key: 'price',
@@ -548,7 +604,7 @@ export const MarketplacePage = observer(function MarketplacePage() {
               width: 120,
               align: 'center' as const,
               render: (_value, item) => {
-                const ok = parseStatusToAvailable(item.extraFields?.Status) ?? item.available
+                const ok = effectiveBillboardAvailable(item)
                 return (
                   <span style={{ fontSize: 18 }}>
                     {ok ? (
@@ -624,10 +680,11 @@ export const MarketplacePage = observer(function MarketplacePage() {
               align: 'center' as const,
               render: (_value, item) => (
                 (() => {
-                  const statusAvailable = parseStatusToAvailable(item.extraFields?.Status)
-                  const isAvailable = statusAvailable ?? item.available
+                  const isBookedByMe = bookedBillboardIdSet.has(item.id)
                   const isFavorited = favoriteIdSet.has(item.id)
-                  const canReserve = canBuy && !session.isLoading && isAvailable === true
+                  const canReserve =
+                    canBuy && !session.isLoading && effectiveBillboardAvailable(item) && !isBookedByMe
+                  const canCancel = canBuy && !session.isLoading && isBookedByMe
 
                   return (
                     <Dropdown
@@ -669,32 +726,30 @@ export const MarketplacePage = observer(function MarketplacePage() {
                               }
                             },
                           },
-                          {
-                            key: 'reserve',
-                            label: (
-                              <Space size={8}>
-                                <CalendarOutlined />
-                                <span>Забронировать</span>
-                              </Space>
-                            ),
-                            disabled: !canReserve,
-                            onClick: async () => {
-                              if (!canReserve) return
-                              const ok = user.pay(item.pricePerWeek)
-                              if (!ok) {
-                                setMessage('Недостаточно средств в кошельке.')
-                                return
+                          isBookedByMe
+                            ? {
+                                key: 'cancel',
+                                danger: true,
+                                label: (
+                                  <Space size={8}>
+                                    <CloseCircleOutlined />
+                                    <span>Отменить бронирование</span>
+                                  </Space>
+                                ),
+                                disabled: !canCancel,
+                                onClick: () => void cancelBillboardBooking(item),
                               }
-                              await billboards.reserve(item.id)
-                              if (billboards.lastError) {
-                                notifyError('Ошибка бронирования', billboards.lastError)
-                                setMessage(`Не удалось забронировать: ${billboards.lastError}`)
-                                return
-                              }
-                              notifySuccess('Бронирование успешно', `Конструкция "${item.title}" забронирована`)
-                              setMessage(`Конструкция "${item.title}" успешно забронирована.`)
-                            },
-                          },
+                            : {
+                                key: 'reserve',
+                                label: (
+                                  <Space size={8}>
+                                    <CalendarOutlined />
+                                    <span>Забронировать</span>
+                                  </Space>
+                                ),
+                                disabled: !canReserve,
+                                onClick: () => void reserveBillboard(item),
+                              },
                         ],
                       }}
                     >

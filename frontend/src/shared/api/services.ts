@@ -3,6 +3,7 @@ import type {
   AuthTokensResponse,
   Billboard,
   BookingPayload,
+  CompanyBookingClientRow,
   CompanyProfile,
   ChangePasswordPayload,
   LoginPayload,
@@ -39,6 +40,9 @@ export const companyApi = {
   },
   getProfile() {
     return http.get<CompanyProfile>('/company/profile')
+  },
+  listBookingClients() {
+    return http.get<CompanyBookingClientRow[]>('/company/clients')
   },
 }
 
@@ -95,6 +99,12 @@ export const bookingApi = {
   create(payload: BookingPayload) {
     return http.post<{ success: boolean }>('/bookings', payload)
   },
+  listMine() {
+    return http.get<{ billboardIds: string[] }>('/bookings/mine')
+  },
+  cancel(payload: BookingPayload) {
+    return http.post<{ success: boolean }>('/bookings/cancel', payload)
+  },
 }
 
 export const superadminApi = {
@@ -112,5 +122,8 @@ export const superadminApi = {
   },
   listSuperadmins() {
     return http.get<SuperadminClientAccountRow[]>('/superadmin/users/superadmins')
+  },
+  listCompanyCatalogOptions() {
+    return http.get<{ id: string; name: string; city: string }[]>('/superadmin/companies/options')
   },
 }

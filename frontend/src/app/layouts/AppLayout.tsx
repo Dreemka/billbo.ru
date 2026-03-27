@@ -26,6 +26,7 @@ export const AppLayout = observer(function AppLayout() {
   const adminItems = [
     { key: '/admin/company', label: 'Профиль', icon: <UserOutlined /> },
     { key: '/admin/billboards', label: 'Рекламные элементы', icon: <AppstoreOutlined /> },
+    { key: '/admin/clients', label: 'Клиенты', icon: <TeamOutlined /> },
   ]
 
   const superadminItems = [
@@ -37,7 +38,8 @@ export const AppLayout = observer(function AppLayout() {
   const userItems = [
     { key: '/user/marketplace', label: 'Каталог', icon: <ShoppingOutlined /> },
     { key: '/user/profile', label: 'Профиль', icon: <UserOutlined /> },
-    { key: '/user/wallet', label: 'Кошелек', icon: <WalletOutlined /> },
+    /** Временно скрыто: кошелёк и пополнение не используются. */
+    { key: '/user/wallet', label: 'Кошелек', icon: <WalletOutlined />, disabled: true },
   ]
 
   const menuItems =

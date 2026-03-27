@@ -10,11 +10,11 @@ import { Public } from '../../common/auth/public.decorator'
 export class AdSurfacesController {
   constructor(private readonly adSurfacesService: AdSurfacesService) {}
 
-  /** Полный каталог (маркетплейс для гостей и клиентов). */
+  /** Полный каталог (маркетплейс). У клиента с привязкой — только выбранные компании. */
   @Public()
   @Get()
-  listPublicCatalog() {
-    return this.adSurfacesService.listPublic()
+  listPublicCatalog(@CurrentUser() user: JwtUserPayload | undefined) {
+    return this.adSurfacesService.listPublicForViewer(user)
   }
 
   /**
@@ -25,7 +25,7 @@ export class AdSurfacesController {
   listMine(@CurrentUser() user: JwtUserPayload | undefined) {
     if (!user?.sub) throw new UnauthorizedException()
     if (user.role === Role.SUPERADMIN) {
-      return this.adSurfacesService.listPublic()
+      return this.adSurfacesService.listAllForModeration()
     }
     if (user.role !== Role.COMPANY) {
       throw new ForbiddenException('Список своих конструкций доступен только аккаунту компании')

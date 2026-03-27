@@ -49,6 +49,8 @@ model User {
   bookings      Booking[]
   refreshTokens RefreshToken[]
   favorites     Favorite[]
+  /** Если пусто — в каталоге видны все компании; иначе только выбранные (назначает супер-админ). */
+  visibleCatalogCompanies UserVisibleCompany[] @relation("UserCatalogCompanies")
 }
 
 model Company {
@@ -58,10 +60,24 @@ model Company {
   name        String
   city        String
   description String?
-  isVerified  Boolean     @default(false)
+  isVerified  Boolean     @default(true)
   surfaces    AdSurface[]
+  catalogClients UserVisibleCompany[] @relation("CompanyCatalogClients")
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
+}
+
+/** Клиент (USER) видит в каталоге только эти компании; без записей — весь каталог. */
+model UserVisibleCompany {
+  userId    String
+  user      User    @relation("UserCatalogCompanies", fields: [userId], references: [id], onDelete: Cascade)
+  companyId String
+  company   Company @relation("CompanyCatalogClients", fields: [companyId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([userId, companyId])
+  @@index([userId])
+  @@index([companyId])
 }
 
 model AdSurface {

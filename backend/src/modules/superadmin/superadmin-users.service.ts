@@ -30,7 +30,20 @@ export class SuperadminUsersService {
       include: {
         wallet: true,
         _count: { select: { favorites: true, bookings: true } },
+        visibleCatalogCompanies: {
+          include: {
+            company: { select: { id: true, name: true, city: true } },
+          },
+        },
       },
+    })
+  }
+
+  /** Список компаний для привязки клиента к каталогу. */
+  listCompanyOptionsForCatalog() {
+    return this.prisma.company.findMany({
+      select: { id: true, name: true, city: true },
+      orderBy: [{ name: 'asc' }, { city: 'asc' }],
     })
   }
 
@@ -75,7 +88,7 @@ export class SuperadminUsersService {
               name: dto.companyName!,
               city: dto.companyCity!,
               description: dto.companyDescription?.trim() || null,
-              isVerified: dto.companyIsVerified ?? false,
+              isVerified: dto.companyIsVerified ?? true,
             },
           })
         }
@@ -141,7 +154,7 @@ export class SuperadminUsersService {
               name: dto.companyName!,
               city: dto.companyCity!,
               description: dto.companyDescription?.trim() || null,
-              isVerified: dto.companyIsVerified ?? false,
+              isVerified: dto.companyIsVerified ?? comp.isVerified,
             },
           })
         } else {
@@ -151,8 +164,24 @@ export class SuperadminUsersService {
               name: dto.companyName!,
               city: dto.companyCity!,
               description: dto.companyDescription?.trim() || null,
-              isVerified: dto.companyIsVerified ?? false,
+              isVerified: dto.companyIsVerified ?? true,
             },
+          })
+        }
+      }
+
+      if (newRole !== Role.USER) {
+        await tx.userVisibleCompany.deleteMany({ where: { userId } })
+      } else if (dto.visibleCompanyIds !== undefined) {
+        const uniqueIds = [...new Set(dto.visibleCompanyIds)]
+        await tx.userVisibleCompany.deleteMany({ where: { userId } })
+        if (uniqueIds.length > 0) {
+          const cnt = await tx.company.count({ where: { id: { in: uniqueIds } } })
+          if (cnt !== uniqueIds.length) {
+            throw new BadRequestException('Указана неизвестная компания')
+          }
+          await tx.userVisibleCompany.createMany({
+            data: uniqueIds.map((companyId) => ({ userId, companyId })),
           })
         }
       }

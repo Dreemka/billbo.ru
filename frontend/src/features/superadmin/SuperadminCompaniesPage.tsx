@@ -368,7 +368,7 @@ export function SuperadminCompaniesPage() {
           type="info"
           showIcon
           style={{ marginBottom: 16 }}
-          message="Нет аккаунтов с ролью «Компания»"
+          title="Нет аккаунтов с ролью «Компания»"
           description="Учётки SUPERADMIN и обычные клиенты (USER) здесь не показываются — смотрите разделы «Супер-админы» и «Клиенты». Добавьте компанию кнопкой выше или зарегистрируйте оператора с типом «Компания»."
         />
       ) : null}

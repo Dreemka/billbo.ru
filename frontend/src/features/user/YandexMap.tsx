@@ -3,7 +3,7 @@ import { ensureYandexMapsScript, getYandexMapsApiKey } from '../../shared/lib/ya
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import type { Billboard } from '../../entities/types'
-import { parseStatusToAvailable } from '../../shared/lib/parseStatusToAvailable'
+import { effectiveBillboardAvailable } from '../../shared/lib/effectiveBillboardAvailable'
 import { reverseGeocodeLatLngToAddress } from '../../shared/lib/yandexGeocode'
 
 export type MapClickPlacementPayload = {
@@ -37,8 +37,7 @@ function getMarkerPreset(available: boolean, focused: boolean) {
 }
 
 function getBillboardAvailable(item: Billboard) {
-  const statusAvailable = parseStatusToAvailable(item.extraFields?.Status)
-  return statusAvailable ?? item.available
+  return effectiveBillboardAvailable(item)
 }
 
 function escapeHtml(text: string): string {
@@ -60,8 +59,7 @@ function buildBillboardBalloonHtml(item: Billboard): string {
   const sideStr =
     sideRaw != null && String(sideRaw).trim() ? escapeHtml(String(sideRaw).trim()) : '—'
 
-  const statusAvailable = parseStatusToAvailable(item.extraFields?.Status)
-  const isAvailable = statusAvailable ?? item.available
+  const isAvailable = effectiveBillboardAvailable(item)
   const statusStr = isAvailable ? 'Доступен' : 'Недоступен'
 
   const gid = item.extraFields?.Gid
