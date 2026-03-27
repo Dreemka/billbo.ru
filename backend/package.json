@@ -16,7 +16,7 @@
     "prisma:seed": "prisma db seed"
   },
   "prisma": {
-    "seed": "ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"
+    "seed": "node -r ts-node/register prisma/seed.ts"
   },
   "keywords": [],
   "author": "",

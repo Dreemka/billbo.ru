@@ -15,6 +15,7 @@ RUN npm ci --omit=dev
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
-RUN npm install prisma@6.19.2
+# prisma migrate deploy + prisma db seed (seed.ts через ts-node из package.json)
+RUN npm install prisma@6.19.2 ts-node typescript@5.9.3
 EXPOSE 4000
 CMD ["sh", "-c", "npx prisma migrate deploy && node dist/main.js"]
