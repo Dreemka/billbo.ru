@@ -111,21 +111,9 @@ docker compose down
 
 ## Суперадмин (bootstrap)
 
-Скрипт: **`backend/prisma/seed.ts`** — создаёт или обновляет пользователя с ролью `SUPERADMIN` (`upsert` по email).
+Скрипт: **`backend/prisma/seed.js`** (CommonJS, без TypeScript) — создаёт или обновляет пользователя с ролью `SUPERADMIN` (`upsert` по email). Команда в **`package.json`**: `node prisma/seed.js` — **не нужен ts-node**, seed стабильно работает в prod Docker.
 
-### Как устроен запуск seed (Prisma)
-
-В **`backend/package.json`** команда seed задана так, чтобы она работала и локально, и **в Docker-образе production**:
-
-```text
-node -r ts-node/register prisma/seed.ts
-```
-
-**Зачем не `ts-node prisma/seed.ts`:** Prisma вызывает команду через `spawn('ts-node', …)`. В контейнере исполняемый файл лежит в `node_modules/.bin/`, а в системном `PATH` его нет — получается ошибка **`spawn ts-node ENOENT`**. Запуск через **`node`** (он всегда в `PATH`) и подключение **`ts-node/register`** обходит это.
-
-Файлы **`prisma/**/*.ts`** включены в **`backend/tsconfig.json`**, чтобы `ts-node` корректно обрабатывал `seed.ts`.
-
-В **`backend/Dockerfile.prod`** в финальный образ дополнительно ставятся **`ts-node`** и **`typescript`** (помимо `prisma`), иначе seed в контейнере не выполнится.
+В **`backend/Dockerfile.prod`** в образ дополнительно ставится только **Prisma CLI** (`npm install prisma@...`), т.к. в `npm ci --omit=dev` devDependencies не попадают.
 
 Предупреждение Prisma про устаревание `package.json#prisma` (миграция на `prisma.config.ts` в Prisma 7) на работу seed не влияет.
 
@@ -137,7 +125,7 @@ node -r ts-node/register prisma/seed.ts
 | `SUPERADMIN_BOOTSTRAP_PASSWORD` | Пароль |
 | `SUPERADMIN_BOOTSTRAP_NAME` | Отображаемое имя |
 
-Если переменные **не** заданы, используются значения по умолчанию из `seed.ts` — **смените их на проде** и не публикуйте реальные пароли в репозитории.
+Если переменные **не** заданы, используются значения по умолчанию из `seed.js` — **смените их на проде** и не публикуйте реальные пароли в репозитории.
 
 ### Локально (без Docker)
 
@@ -300,7 +288,6 @@ chmod +x deploy/sync-and-up.sh
 | Проблема | Что проверить |
 |----------|----------------|
 | На VPS `npx: command not found` | Запускайте Prisma **внутри контейнера** (`docker compose ... exec backend ...`), не на голом хосте без Node. |
-| `spawn ts-node ENOENT` при `prisma db seed` | В проекте seed вызывается через `node -r ts-node/register` (см. раздел **Суперадмин → Как устроен запуск seed**). Обновите код, пересоберите образ backend (`up -d --build`). |
-| Seed в prod падает из‑за отсутствия `ts-node` | Убедитесь, что актуальный **`Dockerfile.prod`** ставит `ts-node` и `typescript`, и образ пересобран. |
+| `Cannot find module 'ts-node/register'` или `spawn ts-node ENOENT` | Убедитесь, что в репозитории seed — это **`prisma/seed.js`** и `package.json` содержит `"seed": "node prisma/seed.js"`. Пересоберите образ backend. |
 | Нет карты / геокодера | Задан ли **`VITE_YANDEX_MAPS_API_KEY`** при сборке фронта (локальный `.env` или `.env.deploy` + пересборка prod). |
 | Бэкенд не подключается к БД | `DATABASE_URL`, доступность Postgres, для Docker — имя хоста `postgres`, не `localhost`, из контейнера backend. |

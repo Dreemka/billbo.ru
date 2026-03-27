@@ -1,5 +1,9 @@
-import { PrismaClient, Role } from '@prisma/client'
-import { hash } from 'bcrypt'
+/**
+ * Bootstrap суперадмина. Запуск: `npx prisma db seed` (без ts-node — работает в prod Docker).
+ * Переменные: SUPERADMIN_BOOTSTRAP_EMAIL, SUPERADMIN_BOOTSTRAP_PASSWORD, SUPERADMIN_BOOTSTRAP_NAME
+ */
+const { PrismaClient, Role } = require('@prisma/client')
+const { hash } = require('bcrypt')
 
 const prisma = new PrismaClient()
 
@@ -26,7 +30,6 @@ async function main() {
     },
   })
 
-  // eslint-disable-next-line no-console
   console.log(`Superadmin upserted: ${email}`)
 }
 
